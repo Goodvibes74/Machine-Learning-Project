@@ -1,7 +1,28 @@
+#data handling
 pandas
 numpy
+
+#data collection
 yfinance
+requests
+
+#machine learning
 scikit-learn
+
+#visualization
 matplotlib
 seaborn
+
+#Sentiment Analysis (for later)
+vaderSentiment
+transformers
+torch
+
+
+#Jupyter for notebooks
 jupyter
+ipython
+
+# Utilities
+python-dotenv
+tqdm
