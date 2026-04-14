@@ -12,6 +12,9 @@ Key Concepts:
 
 import pandas as pd
 import numpy as np
+import os
+import sys
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))# Add parent directory to path so we can import config
 import config
 
 
@@ -35,7 +38,7 @@ def clean_stock_data(df):
         >>> raw_data = load_stock_data('AAPL', 'raw')
         >>> clean_data = clean_stock_data(raw_data)
     """
-    df = df.copy()  # Don't modify original dataframe
+    df = df.copy()  # Don't modify original dataframe because we might want to keep raw data for reference
 
     # Remove columns we don't need (dividends, stock splits)
     columns_to_drop = ['Dividends', 'Stock Splits']
@@ -51,10 +54,15 @@ def clean_stock_data(df):
 
     # Sort by date (important for time series!)
     if 'Date' in df.columns:
-        df = df.sort_values('Date').reset_index(drop=True)
+        df = df.sort_values('Date').reset_index(drop=True)#reset index doesn't keep old index which might be out of order after sorting
+
+    # Ensure price and volume columns are numeric
+    numeric_cols = [col for col in ['Open', 'High', 'Low', 'Close', 'Volume'] if col in df.columns]
+    for col in numeric_cols:
+        df[col] = pd.to_numeric(df[col], errors='coerce')
 
     # Check for and report missing values
-    missing = df.isnull().sum()
+    missing = df.isnull().sum() # .isnull().sum() counts missing values in each column
     if missing.sum() > 0:
         print(f"⚠️  Missing values found:")
         print(missing[missing > 0])
@@ -86,21 +94,21 @@ def handle_missing_values(df, method='forward_fill'):
 
     if method == 'forward_fill':
         # Fill missing values with previous value
-        df = df.fillna(method='ffill')
+        df = df.ffill()
         if config.VERBOSE:
             print("Applied forward fill for missing values")
 
     elif method == 'backward_fill':
         # Fill missing values with next value
-        df = df.fillna(method='bfill')
+        df = df.bfill()
         if config.VERBOSE:
             print("Applied backward fill for missing values")
 
     elif method == 'drop':
         # Remove rows with any missing values
         original_len = len(df)
-        df = df.dropna()
-        dropped = original_len - len(df)
+        df = df.dropna()# Drop any rows that have missing values in any column
+        dropped = original_len - len(df) # Calculate how many rows were dropped
         if config.VERBOSE:
             print(f"Dropped {dropped} rows with missing values")
     else:
@@ -137,7 +145,7 @@ def validate_data(df):
         >>> if validate_data(df):
         >>>     print("Data is valid!")
     """
-    is_valid = True
+    is_valid = True # this flag will track if any validation checks fail. We start with True and set to False if any check fails
 
     # Check 1: Required columns
     required_cols = ['Date', 'Open', 'High', 'Low', 'Close', 'Volume']
@@ -154,12 +162,12 @@ def validate_data(df):
     # Check 3: Prices are positive
     price_cols = ['Open', 'High', 'Low', 'Close']
     for col in price_cols:
-        if col in df.columns and (df[col] <= 0).any():
-            print(f"❌ {col} contains non-positive values")
+        if col in df.columns and ((df[col]) <= 0).any():# Stock prices should never be zero or negative, if we find any it indicates a data error
+            print(f"❌ {col} contains non-positive values") 
             is_valid = False
 
     # Check 4: Volume is non-negative
-    if 'Volume' in df.columns and (df['Volume'] < 0).any():
+    if 'Volume' in df.columns and (df['Volume'] < 0).any():# Volume should never be negative, if we find any it indicates a data error.
         print(f"❌ Volume contains negative values")
         is_valid = False
 
