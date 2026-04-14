@@ -13,10 +13,14 @@ Key Concepts:
 
 import pandas as pd
 import numpy as np
+import os
+import sys
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))# Add parent directory to path so we can import config
 import config
 
 
-def calculate_returns(df):
+
+def calculate_returns(df): # responsible for calculating daily percentage returns, which measure the day-to-day price change and are a fundamental feature for financial modeling.
     """
     Calculate daily percentage returns
 
@@ -44,7 +48,7 @@ def calculate_returns(df):
     return df
 
 
-def add_rolling_averages(df, windows=None):
+def add_rolling_averages(df, windows=None): # responsible for adding Simple Moving Average (SMA) features for specified rolling windows, which help capture price trends and smooth out short-term fluctuations in the stock price.
     """
     Add Simple Moving Averages (SMA) for different time windows
 
@@ -84,7 +88,7 @@ def add_rolling_averages(df, windows=None):
     return df
 
 
-def calculate_volatility(df, window=None):
+def calculate_volatility(df, window=None): # responsible for calculating rolling volatility (standard deviation of returns), which measures how much the stock price fluctuates over a specified period and is an important indicator of risk.
     """
     Calculate rolling volatility (standard deviation of returns)
 
@@ -115,7 +119,7 @@ def calculate_volatility(df, window=None):
     return df
 
 
-def calculate_momentum(df, window=None):
+def calculate_momentum(df, window=None): # responsible for calculating price momentum, which indicates the strength and direction of price movement by comparing the current price to the price from a specified number of days ago.
     """
     Calculate price momentum
 
@@ -143,7 +147,7 @@ def calculate_momentum(df, window=None):
     return df
 
 
-def calculate_volume_change(df):
+def calculate_volume_change(df): # responsible for calculating the percentage change in trading volume, which can provide insights into market activity and potential shifts in investor sentiment.
     """
     Calculate percentage change in trading volume
 
@@ -168,7 +172,7 @@ def calculate_volume_change(df):
     return df
 
 
-def calculate_hl_spread(df):
+def calculate_hl_spread(df): # responsible for calculating the High-Low spread, which measures the intraday price range and can indicate volatility within the day.
     """
     Calculate High-Low spread normalized by Close price
 
@@ -194,7 +198,7 @@ def calculate_hl_spread(df):
     return df
 
 
-def create_sentiment_proxy(df, window=None):
+def create_sentiment_proxy(df, window=None): #responsible for creating a simple sentiment proxy based on price momentum. This is a placeholder until we implement real NLP sentiment analysis.
     """
     Create a price-based sentiment proxy
 
@@ -230,7 +234,7 @@ def create_sentiment_proxy(df, window=None):
     return df
 
 
-def smooth_sentiment(df, window=None):
+def smooth_sentiment(df, window=None): # responsible for smoothing the sentiment proxy using a moving average to reduce noise in daily sentiment fluctuations.
     """
     Add smoothed (moving average) sentiment
 
@@ -256,7 +260,7 @@ def smooth_sentiment(df, window=None):
     return df
 
 
-def create_target_variable(df, horizon=None):
+def create_target_variable(df, horizon=None): # responsible for creating the target variable for prediction, which indicates whether the stock price will go up the next day (or after a specified horizon), enabling the model to learn from historical price movements and make future predictions.
     """
     Create the target variable for prediction
 
