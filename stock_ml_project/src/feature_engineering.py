@@ -280,7 +280,7 @@ def create_target_variable(df, horizon=None):
     df = df.copy()
 
     if horizon is None:
-        horizon = config.PREDICTION_HORIZON
+        horizon = config.PREDICTION_HORIZON 
 
     # Get future close price
     # shift(-1) means "get tomorrow's value"
