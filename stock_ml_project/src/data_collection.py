@@ -33,7 +33,11 @@ import pandas as pd
 import os
 from datetime import datetime
 from tqdm import tqdm
+print ("✅ Imported necessary libraries")
+import sys
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))# Add parent directory to path so we can import config
 import config
+print ("✅ Imported config settings")
 
 
 def download_stock_data(ticker, start_date, end_date, save=True):
@@ -78,7 +82,7 @@ def download_stock_data(ticker, start_date, end_date, save=True):
         stock_data.reset_index(inplace=True)
 
         # Add ticker column for reference
-        stock_data['Ticker'] = ticker
+        stock_data['Ticker'] = ticker # Add ticker symbol as a column for easier identification later
 
         # Save to CSV if requested
         if save:
@@ -118,7 +122,7 @@ def download_multiple_stocks(tickers, start_date, end_date, save=True):
         >>> data_dict = download_multiple_stocks(tickers, '2023-01-01', '2024-01-01')
         >>> print(data_dict['AAPL'].head())
     """
-    stock_data_dict = {}
+    stock_data_dict = {} # Initialize an empty dictionary to store data for each ticker
 
     # Use tqdm for a progress bar (makes it easier to track multiple downloads)
     for ticker in tqdm(tickers, desc="Downloading stocks"):
@@ -151,7 +155,7 @@ def load_stock_data(ticker, data_type='raw'):
         >>> if data is not None:
         >>>     print(data.head())
     """
-    filepath = config.get_data_path(ticker, data_type)
+    filepath = config.get_data_path(ticker, data_type) # Get the correct file path based on ticker and data type
 
     if not os.path.exists(filepath):
         print(f"❌ File not found: {filepath}")
@@ -199,7 +203,7 @@ def get_data_info(ticker, data_type='raw'):
         'rows': len(data),
         'columns': list(data.columns),
         'date_range': f"{data['Date'].min()} to {data['Date'].max()}",
-        'missing_values': data.isnull().sum().sum()
+        'missing_values': data.isnull().sum().sum() # it counts total missing values across the entire DataFrame
     }
 
     return info
