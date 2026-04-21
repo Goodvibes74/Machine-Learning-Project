@@ -88,7 +88,7 @@ SENTIMENT_WINDOW = 3  # 3-day moving average of sentiment
 
 # LOGGING SETTINGS
 # Verbosity level , Verbosity is the level of detail in console output. Set to True for detailed logs, False for minimal output.
-VERBOSE = True  # Set to False to reduce console output
+VERBOSE = False  # Set to False to reduce console output
 
 
 # FEATURE COLUMNS

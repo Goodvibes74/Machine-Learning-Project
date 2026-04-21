@@ -117,7 +117,7 @@ def handle_missing_values(df, method='forward_fill'):
     # If any missing values remain (e.g., first row after forward fill)
     # drop those rows
     if df.isnull().sum().sum() > 0:
-        df = df.dropna()
+        df = df.dropna(subset=['Date'])
         if config.VERBOSE:
             print("Dropped remaining rows with missing values")
 
@@ -224,7 +224,7 @@ def preprocess_stock_data(df, save_path=None):
     # Step 2: Handle missing values
     if config.VERBOSE:
         print("\nStep 2: Handling missing values...")
-    df_processed = handle_missing_values(df_clean, method='forward_fill')
+    df_processed = handle_missing_values(df_clean, method='drop')
 
     # Step 3: Validate
     if config.VERBOSE:
