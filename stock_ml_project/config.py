@@ -36,7 +36,8 @@ TICKERS = [
 # Date range for historical data
 # Default: Last 3 years of data
 END_DATE = datetime.now().strftime('%Y-%m-%d') # Today's date
-START_DATE = (datetime.now() - timedelta(days=3 * 365)).strftime('%Y-%m-%d') # 3 years ago
+START_DATE = '1990-01-01'
+# START_DATE = (datetime.now() - timedelta(days=3 * 365)).strftime('%Y-%m-%d') # 3 years ago
 
 # For setting specific dates:
 # START_DATE = '2021-01-01'
@@ -68,10 +69,10 @@ TEST_SIZE = 0.2  # 20% of data for testing
 # Random Forest hyperparameters
 RF_PARAMS = {
     'n_estimators': 100,  # Number of trees in the forest
-    'max_depth': 10,  # Maximum depth of each tree
+    'max_depth': 15,  # Maximum depth of each tree
     'min_samples_split': 5,  # Minimum samples required to split a node
     'min_samples_leaf': 2,  # Minimum samples required at leaf node
-    'random_state': 42,  # For reproducibility
+    'random_state': 10,  # For reproducibility
     'n_jobs': -1,  # Use all available CPU cores
 }
 
