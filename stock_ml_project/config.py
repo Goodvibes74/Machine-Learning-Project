@@ -36,7 +36,6 @@ TICKERS = [
 # Date range for historical data
 # Default: Last 3 years of data
 END_DATE = datetime.now().strftime('%Y-%m-%d') # Today's date
-#START_DATE = '1990-01-01'
 START_DATE = (datetime.now() - timedelta(days=3 * 365)).strftime('%Y-%m-%d') # 3 years ago
 
 # For setting specific dates:
