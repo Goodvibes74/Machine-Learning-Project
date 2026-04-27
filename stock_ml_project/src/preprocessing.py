@@ -56,6 +56,20 @@ def clean_stock_data(df):
     if 'Date' in df.columns:
         df = df.sort_values('Date').reset_index(drop=True)#reset index doesn't keep old index which might be out of order after sorting
 
+    # IMPROVEMENT: Handle potential MultiIndex columns from yfinance
+    if isinstance(df.columns, pd.MultiIndex):
+        # Flatten MultiIndex columns - take first part of tuple or use single value
+        new_cols = []
+        for col in df.columns:
+            if isinstance(col, tuple):
+                # Use the first element (like 'Close', 'Open', etc.)
+                new_cols.append(col[0])
+            else:
+                new_cols.append(col)
+        df.columns = new_cols
+        if config.VERBOSE:
+            print(f"✅ Flattened MultiIndex columns: {list(df.columns)}")
+
     # Ensure price and volume columns are numeric
     numeric_cols = [col for col in ['Open', 'High', 'Low', 'Close', 'Volume'] if col in df.columns]
     for col in numeric_cols:

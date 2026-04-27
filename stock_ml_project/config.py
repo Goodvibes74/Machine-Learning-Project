@@ -38,10 +38,6 @@ TICKERS = [
 END_DATE = datetime.now().strftime('%Y-%m-%d') # Today's date
 START_DATE = (datetime.now() - timedelta(days=3 * 365)).strftime('%Y-%m-%d') # 3 years ago
 
-# For setting specific dates:
-# START_DATE = '2021-01-01'
-# END_DATE = '2024-01-01'
-
 # FEATURE ENGINEERING SETTINGS
 # Rolling window sizes for moving averages (in trading days)
 ROLLING_WINDOWS = [5, 10, 20]  # Short, medium, long-term trends
@@ -65,23 +61,23 @@ PREDICTION_HORIZON = 1  # Next day prediction (binary: up/down)
 # Train/Test split ratio
 TEST_SIZE = 0.2  # 20% of data for testing
 
-# Random Forest hyperparameters - LEAKAGE FIX: Conservative params to reduce overfitting
+# Random Forest hyperparameters - Conservative params for better accuracy
 RF_PARAMS = {
-    'n_estimators': 100,  # Number of trees in the forest
-    'max_depth': 5,  # LEAKAGE FIX: Reduced from 15 to prevent overfitting
-    'min_samples_split': 20,  # LEAKAGE FIX: Increased from 5 to prevent overfitting
-    'min_samples_leaf': 10,  # LEAKAGE FIX: Increased from 2 to prevent overfitting
-    'random_state': 42,  # LEAKAGE FIX: Changed from 10 for reproducibility
+    'n_estimators': 100,  # Conservative: Reduced from 200
+    'max_depth': 5,  # Conservative: Reduced from 8
+    'min_samples_split': 20,  # Conservative: Increased from 15
+    'min_samples_leaf': 10,  # Conservative: Increased from 5
+    'random_state': 42,
     'n_jobs': -1,  # Use all available CPU cores
 }
 
-# XGBoost hyperparameters - LEAKAGE FIX: Conservative params to reduce overfitting
+# XGBoost hyperparameters - Conservative params for better accuracy
 XGB_PARAMS = {
-    'n_estimators': 100,
-    'max_depth': 4,  # LEAKAGE FIX: Reduced from 6 to prevent overfitting
-    'learning_rate': 0.05,  # LEAKAGE FIX: Reduced from 0.1 for better generalization
-    'subsample': 0.8,  # LEAKAGE FIX: Added to reduce overfitting
-    'colsample_bytree': 0.8,  # LEAKAGE FIX: Added to reduce overfitting
+    'n_estimators': 100,  # Conservative: Reduced from 200
+    'max_depth': 4,  # Conservative: Reduced from 5
+    'learning_rate': 0.05,
+    'subsample': 0.8,
+    'colsample_bytree': 0.8,
     'eval_metric': 'logloss',
     'random_state': 42
 }

@@ -348,9 +348,15 @@ def run_full_comparison(ticker='AAPL'):
     print("\n1. Loading stock data...")
     raw_data = load_stock_data(ticker, 'raw')
 
+    # IMPROVEMENT: If no cached data, download with new date range
     if raw_data is None:
-        print("❌ Failed to load data. Please run data collection first.")
-        return None
+        print("No cached data found. Downloading with new date range...")
+        from src.data_collection import download_stock_data
+        raw_data = download_stock_data(ticker, config.START_DATE, config.END_DATE, save=True)
+        
+        if raw_data is None:
+            print("❌ Failed to download data.")
+            return None
 
     # Process data
     print("2. Preprocessing data...")
@@ -412,6 +418,42 @@ def run_full_comparison(ticker='AAPL'):
     # Build and display comparison table
     comparison_df = build_comparison_table(rf_metrics, xgb_metrics)
 
+    # IMPROVEMENT: Add data summary section
+    print("\n" + "=" * 70)
+    print(" " * 20 + "DATA SUMMARY")
+    print("=" * 70)
+    
+    print(f"\nNumber of features: {len(features)}")
+    print(f"Feature names: {features}")
+    
+    # Get date ranges from the original dataframe
+    from src.data_collection import load_stock_data
+    from src.preprocessing import preprocess_stock_data
+    from src.feature_engineering import engineer_all_features
+    
+    # Reload data to get dates (same data used for training)
+    raw_data = load_stock_data(ticker, 'raw')
+    processed = preprocess_stock_data(raw_data)
+    featured = engineer_all_features(processed)
+    
+    # Get dates for train/test split
+    featured_clean = featured.dropna()
+    dates = featured_clean['Date'].reset_index(drop=True)
+    split_idx = int(len(dates) * 0.8)
+    
+    train_dates = dates.iloc[:split_idx]
+    test_dates = dates.iloc[split_idx:]
+    
+    print(f"\nTraining data date range: {train_dates.min().strftime('%Y-%m-%d')} to {train_dates.max().strftime('%Y-%m-%d')}")
+    print(f"Test data date range: {test_dates.min().strftime('%Y-%m-%d')} to {test_dates.max().strftime('%Y-%m-%d')}")
+    
+    # Class balance in test set
+    up_pct = (y_test.sum() / len(y_test) * 100)
+    down_pct = 100 - up_pct
+    print(f"\nClass balance in test set:")
+    print(f"  Up days:   {up_pct:.1f}%")
+    print(f"  Down days: {down_pct:.1f}%")
+
     # Generate plots
     print("\n" + "=" * 70)
     print("8. GENERATING VISUALIZATIONS")
@@ -459,6 +501,18 @@ def run_full_comparison(ticker='AAPL'):
     if max_auc > 0.85:
         print("\n⚠️  WARNING: Leakage may still exist — review feature_engineering.py manually")
         print(f"   Max ROC-AUC detected: {max_auc:.4f}")
+
+    # IMPROVEMENT: Check if accuracy dropped below baseline
+    baseline_rf = 0.5274  # Original baseline
+    baseline_xgb = 0.5000  # Original baseline
+    rf_acc = rf_metrics.get('accuracy', 0)
+    xgb_acc = xgb_metrics.get('accuracy', 0)
+    
+    if rf_acc < baseline_rf or xgb_acc < baseline_xgb:
+        print("\n⚠️  WARNING: Accuracy dropped below baseline!")
+        print(f"   RF: {rf_acc:.4f} (baseline: {baseline_rf:.4f})")
+        print(f"   XGB: {xgb_acc:.4f} (baseline: {baseline_xgb:.4f})")
+        print("   Consider reverting config.py parameter changes for better results")
 
     return {
         'rf_model': rf_model,

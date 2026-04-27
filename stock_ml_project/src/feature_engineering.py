@@ -198,6 +198,204 @@ def calculate_hl_spread(df): # responsible for calculating the High-Low spread, 
     return df
 
 
+def calculate_rsi(df, window=14):
+    """
+    Calculate Relative Strength Index (RSI)
+
+    RSI measures the magnitude of recent price changes to evaluate
+    overbought or oversold conditions.
+    - RSI > 70: Overbought (potential sell signal)
+    - RSI < 30: Oversold (potential buy signal)
+
+    IMPROVEMENT: Uses shift(1) on Close to ensure no look-ahead bias.
+
+    Args:
+        df (pd.DataFrame): Stock data with 'Close' column
+        window (int): RSI period (default: 14)
+
+    Returns:
+        pd.DataFrame: Data with 'RSI_14' column added
+    """
+    df = df.copy()
+
+    # Use shifted close to prevent look-ahead bias
+    close_shifted = df['Close'].shift(1)
+
+    # Calculate price changes using shifted close
+    delta = close_shifted.diff()
+
+    # Separate gains and losses
+    gains = delta.where(delta > 0, 0)
+    losses = (-delta).where(delta < 0, 0)
+
+    # Calculate average gains and losses using rolling mean
+    avg_gain = gains.rolling(window=window).mean()
+    avg_loss = losses.rolling(window=window).mean()
+
+    # Calculate RS and RSI
+    rs = avg_gain / avg_loss
+    df['RSI_14'] = 100 - (100 / (1 + rs))
+
+    if config.VERBOSE:
+        print(f"✅ Added 'RSI_14' feature (window={window})")
+
+    return df
+
+
+def calculate_macd(df):
+    """
+    Calculate MACD (Moving Average Convergence Divergence)
+
+    MACD is a trend-following momentum indicator:
+    - MACD line = 12-day EWM - 26-day EWM
+    - Signal line = 9-day EWM of MACD
+    - Histogram = MACD - Signal
+
+    IMPROVEMENT: Uses shift(1) on Close to ensure no look-ahead bias.
+
+    Args:
+        df (pd.DataFrame): Stock data with 'Close' column
+
+    Returns:
+        pd.DataFrame: Data with 'MACD' and 'MACD_signal' columns added
+    """
+    df = df.copy()
+
+    # Use shifted close to prevent look-ahead bias
+    close_shifted = df['Close'].shift(1)
+
+    # Calculate MACD line (12-day EWM - 26-day EWM)
+    ema_12 = close_shifted.ewm(span=12, adjust=False).mean()
+    ema_26 = close_shifted.ewm(span=26, adjust=False).mean()
+    df['MACD'] = ema_12 - ema_26
+
+    # Calculate Signal line (9-day EWM of MACD)
+    df['MACD_signal'] = df['MACD'].ewm(span=9, adjust=False).mean()
+
+    if config.VERBOSE:
+        print("✅ Added 'MACD' and 'MACD_signal' features")
+
+    return df
+
+
+def calculate_bollinger_bands(df, window=20):
+    """
+    Calculate Bollinger Bands
+
+    Bollinger Bands are volatility bands placed above and below a moving average.
+    - Upper Band = SMA + 2*Standard Deviation
+    - Lower Band = SMA - 2*Standard Deviation
+    - Band Width = (Upper - Lower) / SMA
+    - Band Position = (Close - Lower) / (Upper - Lower)
+
+    IMPROVEMENT: Uses shift(1) on Close to ensure no look-ahead bias.
+
+    Args:
+        df (pd.DataFrame): Stock data with 'Close' column
+        window (int): Window for SMA and std (default: 20)
+
+    Returns:
+        pd.DataFrame: Data with 'BB_upper', 'BB_lower', 'BB_width', 'BB_position' columns
+    """
+    df = df.copy()
+
+    # Use shifted close to prevent look-ahead bias
+    close_shifted = df['Close'].shift(1)
+
+    # Calculate SMA and standard deviation
+    sma = close_shifted.rolling(window=window).mean()
+    std = close_shifted.rolling(window=window).std()
+
+    # Calculate Bollinger Bands
+    df['BB_upper'] = sma + 2 * std
+    df['BB_lower'] = sma - 2 * std
+
+    # Calculate Band Width (normalized)
+    df['BB_width'] = (df['BB_upper'] - df['BB_lower']) / sma
+
+    # Calculate Band Position
+    df['BB_position'] = (df['Close'] - df['BB_lower']) / (df['BB_upper'] - df['BB_lower'])
+
+    if config.VERBOSE:
+        print(f"✅ Added Bollinger Bands features (window={window})")
+
+    return df
+
+
+def calculate_obv(df):
+    """
+    Calculate On-Balance Volume (OBV)
+
+    OBV is a cumulative indicator that adds volume on up days and
+    subtracts volume on down days. It measures buying/selling pressure.
+
+    IMPROVEMENT: Uses shift(1) on Close to ensure no look-ahead bias.
+
+    Args:
+        df (pd.DataFrame): Stock data with 'Close' and 'Volume' columns
+
+    Returns:
+        pd.DataFrame: Data with 'OBV' and 'OBV_change' columns added
+    """
+    df = df.copy()
+
+    # Use shifted close to prevent look-ahead bias
+    close_shifted = df['Close'].shift(1)
+
+    # Calculate direction: 1 if close > close_shifted, -1 if close < close_shifted, 0 otherwise
+    direction = (df['Close'] > close_shifted).astype(int) - (df['Close'] < close_shifted).astype(int)
+
+    # Calculate OBV (cumulative sum of volume * direction)
+    df['OBV'] = (direction * df['Volume']).cumsum()
+
+    # Calculate OBV change (percentage)
+    df['OBV_change'] = df['OBV'].pct_change()
+
+    if config.VERBOSE:
+        print("✅ Added 'OBV' and 'OBV_change' features")
+
+    return df
+
+
+def calculate_atr(df, window=14):
+    """
+    Calculate Average True Range (ATR)
+
+    ATR measures market volatility. It's the average of the True Range
+    over a specified period.
+    True Range = max(High - Low, |High - Previous Close|, |Low - Previous Close|)
+
+    IMPROVEMENT: Uses shift(1) on Close to ensure no look-ahead bias.
+
+    Args:
+        df (pd.DataFrame): Stock data with 'High', 'Low', 'Close' columns
+        window (int): ATR period (default: 14)
+
+    Returns:
+        pd.DataFrame: Data with 'ATR_14' column added
+    """
+    df = df.copy()
+
+    # Use shifted close for True Range calculation
+    prev_close = df['Close'].shift(1)
+
+    # Calculate True Range components
+    high_low = df['High'] - df['Low']
+    high_prev = (df['High'] - prev_close).abs()
+    low_prev = (df['Low'] - prev_close).abs()
+
+    # True Range is the max of the three
+    true_range = pd.concat([high_low, high_prev, low_prev], axis=1).max(axis=1)
+
+    # Calculate ATR as rolling mean of True Range
+    df['ATR_14'] = true_range.rolling(window=window).mean()
+
+    if config.VERBOSE:
+        print(f"✅ Added 'ATR_14' feature (window={window})")
+
+    return df
+
+
 def create_sentiment_proxy(df, window=None): #responsible for creating a simple sentiment proxy based on price momentum. This is a placeholder until we implement real NLP sentiment analysis.
     """
     Create a price-based sentiment proxy
@@ -336,6 +534,7 @@ def engineer_all_features(df):
     df = df.copy()
 
     # Apply each feature engineering step
+    # Original 10 features (no technical indicators - they hurt performance)
     df = calculate_returns(df)
     df = add_rolling_averages(df)
     df = calculate_volatility(df)
