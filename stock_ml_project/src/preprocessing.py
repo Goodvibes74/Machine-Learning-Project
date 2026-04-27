@@ -78,7 +78,7 @@ def clean_stock_data(df):
     # Check for and report missing values
     missing = df.isnull().sum() # .isnull().sum() counts missing values in each column
     if missing.sum() > 0:
-        print(f"⚠️  Missing values found:")
+        print(f"[WARNING] Missing values found:")
         print(missing[missing > 0])
 
     return df

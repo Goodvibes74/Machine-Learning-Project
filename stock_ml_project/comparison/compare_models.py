@@ -32,7 +32,7 @@ from sklearn.metrics import (
 )
 
 # Import from existing modules
-from src.models import train_random_forest, evaluate_model
+from src.models import train_random_forest, evaluate_model, train_svm, evaluate_svm
 from src.xgboost_model import train_xgboost, evaluate_xgboost_model
 import config
 
@@ -74,19 +74,67 @@ def get_metrics(model, X_test, y_test, model_name):
     return metrics
 
 
-def build_comparison_table(rf_metrics, xgb_metrics):
+def get_svm_metrics(model, scaler, X_test, y_test, model_name):
     """
-    Build a formatted comparison table for both models
+    Get performance metrics for a trained SVM model
+
+    SVM requires scaled data, so this function handles the scaling.
+
+    Args:
+        model: Trained SVM model
+        scaler: Fitted StandardScaler
+        X_test: Test features
+        y_test: Test labels
+        model_name: Name of the model for reporting
+
+    Returns:
+        dict: Dictionary containing model name and metrics
+    """
+    # Scale the data
+    X_test_scaled = scaler.transform(X_test)
+
+    # Make predictions
+    y_pred = model.predict(X_test_scaled)
+
+    # Get probability predictions for ROC-AUC (if available)
+    try:
+        y_proba = model.predict_proba(X_test_scaled)[:, 1]
+        roc_auc = roc_auc_score(y_test, y_proba)
+    except Exception:
+        roc_auc = None
+
+    # Calculate metrics
+    metrics = {
+        'model': model_name,
+        'accuracy': accuracy_score(y_test, y_pred),
+        'precision': precision_score(y_test, y_pred, zero_division=0),
+        'recall': recall_score(y_test, y_pred, zero_division=0),
+        'f1': f1_score(y_test, y_pred, zero_division=0),
+        'roc_auc': roc_auc,
+    }
+
+    return metrics
+
+
+def build_comparison_table(rf_metrics, xgb_metrics, svm_metrics=None):
+    """
+    Build a formatted comparison table for all models
 
     Args:
         rf_metrics: Metrics dict for Random Forest
         xgb_metrics: Metrics dict for XGBoost
+        svm_metrics: Metrics dict for SVM (optional)
 
     Returns:
         pd.DataFrame: Formatted comparison table
     """
+    # Create list of metrics
+    metrics_list = [rf_metrics, xgb_metrics]
+    if svm_metrics is not None:
+        metrics_list.append(svm_metrics)
+
     # Create DataFrame
-    df = pd.DataFrame([rf_metrics, xgb_metrics])
+    df = pd.DataFrame(metrics_list)
 
     # Rename columns for display
     df = df.rename(columns={
@@ -126,29 +174,42 @@ def build_comparison_table(rf_metrics, xgb_metrics):
     for col in metric_cols:
         rf_val = rf_metrics.get(col.lower().replace('-', '_'), rf_metrics.get(col, 0))
         xgb_val = xgb_metrics.get(col.lower().replace('-', '_'), xgb_metrics.get(col, 0))
+        
+        # Get SVM value if available
+        svm_val = None
+        if svm_metrics is not None:
+            svm_val = svm_metrics.get(col.lower().replace('-', '_'), svm_metrics.get(col, 0))
 
-        if rf_val is not None and xgb_val is not None:
-            if rf_val > xgb_val:
-                print(f"  {col}: Random Forest ⬆️")
-            elif xgb_val > rf_val:
-                print(f"  {col}: XGBoost ⬆️")
-            else:
-                print(f"  {col}: Tie")
+        # Find the best model for this metric
+        values = {'Random Forest': rf_val, 'XGBoost': xgb_val}
+        if svm_val is not None:
+            values['SVM'] = svm_val
+        
+        best_model = max(values, key=lambda k: values[k] if values[k] is not None else 0)
+        best_val = values[best_model]
+        
+        # Check for ties
+        tied = [k for k, v in values.items() if v is not None and abs(v - best_val) < 0.0001]
+        
+        if len(tied) > 1:
+            print(f"  {col}: {' & '.join(tied)} (tie)")
         else:
-            print(f"  {col}: N/A")
+            print(f"  {col}: {best_model} [BEST]")
 
     return df
 
 
-def plot_roc_curves(rf_model, xgb_model, X_test, y_test):
+def plot_roc_curves(rf_model, xgb_model, X_test, y_test, svm_model=None, svm_scaler=None):
     """
-    Plot ROC curves for both models on the same figure
+    Plot ROC curves for all models on the same figure
 
     Args:
         rf_model: Trained Random Forest model
         xgb_model: Trained XGBoost model
         X_test: Test features
         y_test: Test labels
+        svm_model: Trained SVM model (optional)
+        svm_scaler: Fitted StandardScaler for SVM (optional)
     """
     plt.figure(figsize=(10, 8))
 
@@ -168,6 +229,15 @@ def plot_roc_curves(rf_model, xgb_model, X_test, y_test):
     plt.plot(xgb_fpr, xgb_tpr, color='orange', lw=2,
              label=f'XGBoost (AUC = {xgb_auc:.4f})')
 
+    # Plot SVM if available
+    if svm_model is not None and svm_scaler is not None:
+        X_test_scaled = svm_scaler.transform(X_test)
+        svm_proba = svm_model.predict_proba(X_test_scaled)[:, 1]
+        svm_fpr, svm_tpr, _ = roc_curve(y_test, svm_proba)
+        svm_auc = roc_auc_score(y_test, svm_proba)
+        plt.plot(svm_fpr, svm_tpr, color='green', lw=2,
+                 label=f'SVM (AUC = {svm_auc:.4f})')
+
     # Plot diagonal (random classifier)
     plt.plot([0, 1], [0, 1], color='gray', lw=1, linestyle='--',
              label='Random Classifier')
@@ -176,7 +246,7 @@ def plot_roc_curves(rf_model, xgb_model, X_test, y_test):
     plt.ylim([0.0, 1.05])
     plt.xlabel('False Positive Rate', fontsize=12)
     plt.ylabel('True Positive Rate', fontsize=12)
-    plt.title('ROC Curve Comparison: Random Forest vs XGBoost', fontsize=14)
+    plt.title('ROC Curve Comparison', fontsize=14)
     plt.legend(loc='lower right', fontsize=11)
     plt.grid(True, alpha=0.3)
     plt.tight_layout()
@@ -185,18 +255,19 @@ def plot_roc_curves(rf_model, xgb_model, X_test, y_test):
     output_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'outputs')
     os.makedirs(output_dir, exist_ok=True)
     plt.savefig(os.path.join(output_dir, 'roc_comparison.png'), dpi=150)
-    print(f"✅ ROC curve saved to {output_dir}/roc_comparison.png")
+    print(f"[OK] ROC curve saved to {output_dir}/roc_comparison.png")
 
     plt.show()
 
 
-def plot_metrics_bar_chart(rf_metrics, xgb_metrics):
+def plot_metrics_bar_chart(rf_metrics, xgb_metrics, svm_metrics=None):
     """
     Plot grouped bar chart comparing performance metrics
 
     Args:
         rf_metrics: Metrics dict for Random Forest
         xgb_metrics: Metrics dict for XGBoost
+        svm_metrics: Metrics dict for SVM (optional)
     """
     # Define metrics to compare
     metrics = ['accuracy', 'precision', 'recall', 'f1', 'roc_auc']
@@ -205,23 +276,35 @@ def plot_metrics_bar_chart(rf_metrics, xgb_metrics):
     # Extract values
     rf_values = [rf_metrics.get(m, 0) for m in metrics]
     xgb_values = [xgb_metrics.get(m, 0) for m in metrics]
+    svm_values = [svm_metrics.get(m, 0) for m in metrics] if svm_metrics else None
 
     # Handle None values
     rf_values = [v if v is not None else 0 for v in rf_values]
     xgb_values = [v if v is not None else 0 for v in xgb_values]
+    if svm_values:
+        svm_values = [v if v is not None else 0 for v in svm_values]
 
     # Create figure
-    plt.figure(figsize=(12, 6))
+    if svm_values:
+        plt.figure(figsize=(14, 6))
+        x = np.arange(len(metrics))
+        width = 0.25
+        
+        bars1 = plt.bar(x - width, rf_values, width, label='Random Forest',
+                        color='steelblue', edgecolor='black')
+        bars2 = plt.bar(x, xgb_values, width, label='XGBoost',
+                        color='darkorange', edgecolor='black')
+        bars3 = plt.bar(x + width, svm_values, width, label='SVM',
+                        color='green', edgecolor='black')
+    else:
+        plt.figure(figsize=(12, 6))
+        x = np.arange(len(metrics))
+        width = 0.35
 
-    # Set up bar positions
-    x = np.arange(len(metrics))
-    width = 0.35
-
-    # Create bars
-    bars1 = plt.bar(x - width/2, rf_values, width, label='Random Forest',
-                    color='steelblue', edgecolor='black')
-    bars2 = plt.bar(x + width/2, xgb_values, width, label='XGBoost',
-                    color='darkorange', edgecolor='black')
+        bars1 = plt.bar(x - width/2, rf_values, width, label='Random Forest',
+                        color='steelblue', edgecolor='black')
+        bars2 = plt.bar(x + width/2, xgb_values, width, label='XGBoost',
+                        color='darkorange', edgecolor='black')
 
     # Customize plot
     plt.xlabel('Metrics', fontsize=12)
@@ -248,6 +331,15 @@ def plot_metrics_bar_chart(rf_metrics, xgb_metrics):
                     xytext=(0, 3),
                     textcoords="offset points",
                     ha='center', va='bottom', fontsize=9)
+    
+    if svm_values:
+        for bar in bars3:
+            height = bar.get_height()
+            plt.annotate(f'{height:.3f}',
+                        xy=(bar.get_x() + bar.get_width() / 2, height),
+                        xytext=(0, 3),
+                        textcoords="offset points",
+                        ha='center', va='bottom', fontsize=9)
 
     plt.tight_layout()
 
@@ -255,7 +347,7 @@ def plot_metrics_bar_chart(rf_metrics, xgb_metrics):
     output_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'outputs')
     os.makedirs(output_dir, exist_ok=True)
     plt.savefig(os.path.join(output_dir, 'metrics_comparison.png'), dpi=150)
-    print(f"✅ Metrics comparison saved to {output_dir}/metrics_comparison.png")
+    print(f"[OK] Metrics comparison saved to {output_dir}/metrics_comparison.png")
 
     plt.show()
 
@@ -310,7 +402,7 @@ def plot_feature_importance_comparison(rf_model, xgb_model, feature_names):
     output_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'outputs')
     os.makedirs(output_dir, exist_ok=True)
     plt.savefig(os.path.join(output_dir, 'feature_importance_comparison.png'), dpi=150)
-    print(f"✅ Feature importance comparison saved to {output_dir}/feature_importance_comparison.png")
+    print(f"[OK] Feature importance comparison saved to {output_dir}/feature_importance_comparison.png")
 
     plt.show()
 
@@ -404,9 +496,18 @@ def run_full_comparison(ticker='AAPL'):
     xgb_training_time = time.time() - start_time
     print(f"Training time: {xgb_training_time:.4f}s")
 
-    # Get metrics for both models (use test set for evaluation)
+    # Train SVM with timing
     print("\n" + "=" * 70)
-    print("7. EVALUATING MODELS")
+    print("7. TRAINING SVM")
+    print("=" * 70)
+    start_time = time.time()
+    svm_model, svm_scaler = train_svm(X_train, y_train)
+    svm_training_time = time.time() - start_time
+    print(f"Training time: {svm_training_time:.4f}s")
+
+    # Get metrics for all models (use test set for evaluation)
+    print("\n" + "=" * 70)
+    print("8. EVALUATING MODELS")
     print("=" * 70)
 
     rf_metrics = get_metrics(rf_model, X_test, y_test, 'Random Forest')
@@ -415,8 +516,11 @@ def run_full_comparison(ticker='AAPL'):
     xgb_metrics = get_metrics(xgb_model, X_test, y_test, 'XGBoost')
     xgb_metrics['training_time'] = xgb_training_time
 
+    svm_metrics = get_svm_metrics(svm_model, svm_scaler, X_test, y_test, 'SVM')
+    svm_metrics['training_time'] = svm_training_time
+
     # Build and display comparison table
-    comparison_df = build_comparison_table(rf_metrics, xgb_metrics)
+    comparison_df = build_comparison_table(rf_metrics, xgb_metrics, svm_metrics)
 
     # IMPROVEMENT: Add data summary section
     print("\n" + "=" * 70)
@@ -456,14 +560,14 @@ def run_full_comparison(ticker='AAPL'):
 
     # Generate plots
     print("\n" + "=" * 70)
-    print("8. GENERATING VISUALIZATIONS")
+    print("9. GENERATING VISUALIZATIONS")
     print("=" * 70)
 
     print("\nPlotting ROC curves...")
-    plot_roc_curves(rf_model, xgb_model, X_test, y_test)
+    plot_roc_curves(rf_model, xgb_model, X_test, y_test, svm_model, svm_scaler)
 
     print("\nPlotting metrics comparison...")
-    plot_metrics_bar_chart(rf_metrics, xgb_metrics)
+    plot_metrics_bar_chart(rf_metrics, xgb_metrics, svm_metrics)
 
     print("\nPlotting feature importance comparison...")
     plot_feature_importance_comparison(rf_model, xgb_model, features)
@@ -473,7 +577,7 @@ def run_full_comparison(ticker='AAPL'):
     os.makedirs(output_dir, exist_ok=True)
 
     # Create results DataFrame
-    results_df = pd.DataFrame([rf_metrics, xgb_metrics])
+    results_df = pd.DataFrame([rf_metrics, xgb_metrics, svm_metrics])
     results_df = results_df.rename(columns={
         'model': 'Model',
         'accuracy': 'Accuracy',
@@ -487,7 +591,7 @@ def run_full_comparison(ticker='AAPL'):
     # Save to CSV
     csv_path = os.path.join(output_dir, 'comparison_results.csv')
     results_df.to_csv(csv_path, index=False)
-    print(f"\n✅ Results saved to {csv_path}")
+    print(f"\n[OK] Results saved to {csv_path}")
 
     print("\n" + "=" * 70)
     print(" " * 20 + "COMPARISON COMPLETE!")
@@ -517,8 +621,11 @@ def run_full_comparison(ticker='AAPL'):
     return {
         'rf_model': rf_model,
         'xgb_model': xgb_model,
+        'svm_model': svm_model,
+        'svm_scaler': svm_scaler,
         'rf_metrics': rf_metrics,
         'xgb_metrics': xgb_metrics,
+        'svm_metrics': svm_metrics,
         'comparison_table': comparison_df
     }
 

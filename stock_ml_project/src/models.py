@@ -14,6 +14,8 @@ Key Concepts:
 import pandas as pd
 import numpy as np
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.svm import SVC
+from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import (
     accuracy_score,
     classification_report,
@@ -119,6 +121,50 @@ def train_random_forest(X_train, y_train, params=None):
     return model
 
 
+def train_svm(X_train, y_train, params=None):
+    """
+    Train a Support Vector Machine (SVM) classifier
+
+    SVM works by finding the optimal hyperplane that separates classes.
+    Uses kernel trick to handle non-linear relationships.
+
+    Args:
+        X_train (pd.DataFrame): Training features
+        y_train (pd.Series): Training target
+        params (dict): Model hyperparameters (default from config)
+
+    Returns:
+        tuple: (SVM model, StandardScaler) - scaler needed for preprocessing test data
+    """
+    if params is None:
+        params = config.SVM_PARAMS
+
+    if config.VERBOSE:
+        print("\n" + "=" * 60)
+        print("TRAINING SVM MODEL")
+        print("=" * 60)
+        print(f"Parameters: {params}")
+
+    # SVM requires feature scaling (important!)
+    # StandardScaler normalizes features to have mean=0 and std=1
+    scaler = StandardScaler()
+    X_train_scaled = scaler.fit_transform(X_train)
+
+    # Initialize the model
+    model = SVC(**params)
+
+    # Train the model
+    if config.VERBOSE:
+        print("\nTraining model...")
+
+    model.fit(X_train_scaled, y_train)
+
+    if config.VERBOSE:
+        print("✅ Model training complete!")
+
+    return model, scaler
+
+
 def evaluate_model(model, X_train, y_train, X_test, y_test):
     """
     Evaluate model performance on both training and test sets
@@ -143,6 +189,74 @@ def evaluate_model(model, X_train, y_train, X_test, y_test):
     # Make predictions
     train_pred = model.predict(X_train)
     test_pred = model.predict(X_test)
+
+    # Calculate metrics
+    results = {
+        'train_accuracy': accuracy_score(y_train, train_pred),
+        'test_accuracy': accuracy_score(y_test, test_pred),
+        'train_precision': precision_score(y_train, train_pred),
+        'test_precision': precision_score(y_test, test_pred),
+        'train_recall': recall_score(y_train, train_pred),
+        'test_recall': recall_score(y_test, test_pred),
+        'train_f1': f1_score(y_train, train_pred),
+        'test_f1': f1_score(y_test, test_pred),
+    }
+
+    # Print results
+    if config.VERBOSE:
+        print("\nTRAINING SET PERFORMANCE:")
+        print(f"  Accuracy:  {results['train_accuracy']:.4f}")
+        print(f"  Precision: {results['train_precision']:.4f}")
+        print(f"  Recall:    {results['train_recall']:.4f}")
+        print(f"  F1 Score:  {results['train_f1']:.4f}")
+
+        print("\nTEST SET PERFORMANCE:")
+        print(f"  Accuracy:  {results['test_accuracy']:.4f}")
+        print(f"  Precision: {results['test_precision']:.4f}")
+        print(f"  Recall:    {results['test_recall']:.4f}")
+        print(f"  F1 Score:  {results['test_f1']:.4f}")
+
+        # Check for overfitting
+        accuracy_diff = results['train_accuracy'] - results['test_accuracy']
+        if accuracy_diff > 0.1:
+            print(f"\n⚠️  Warning: Possible overfitting detected!")
+            print(f"   Train accuracy is {accuracy_diff:.2%} higher than test")
+
+        # Classification report
+        print("\nDETAILED CLASSIFICATION REPORT (Test Set):")
+        print(classification_report(y_test, test_pred,
+                                    target_names=['Down (0)', 'Up (1)']))
+
+    return results
+
+
+def evaluate_svm(model, scaler, X_train, y_train, X_test, y_test):
+    """
+    Evaluate SVM model performance on both training and test sets
+
+    SVM requires scaled data, so this function handles the scaling.
+
+    Args:
+        model: Trained SVM model
+        scaler: Fitted StandardScaler
+        X_train, y_train: Training data
+        X_test, y_test: Test data
+
+    Returns:
+        dict: Dictionary with performance metrics
+    """
+    if config.VERBOSE:
+        print("\n" + "=" * 60)
+        print("SVM MODEL EVALUATION")
+        print("=" * 60)
+
+    # Scale the data using the fitted scaler
+    X_train_scaled = scaler.transform(X_train)
+    X_test_scaled = scaler.transform(X_test)
+
+    # Make predictions
+    train_pred = model.predict(X_train_scaled)
+    test_pred = model.predict(X_test_scaled)
 
     # Calculate metrics
     results = {

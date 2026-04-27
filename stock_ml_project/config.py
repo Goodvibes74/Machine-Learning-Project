@@ -82,6 +82,15 @@ XGB_PARAMS = {
     'random_state': 42
 }
 
+# SVM hyperparameters
+SVM_PARAMS = {
+    'kernel': 'rbf',
+    'C': 1.0,
+    'gamma': 'scale',
+    'probability': True,
+    'random_state': 42
+}
+
 # BACKTESTING SETTINGS
 # Number of splits for walk-forward validation
 N_SPLITS = 5  # 5-fold time series cross-validation

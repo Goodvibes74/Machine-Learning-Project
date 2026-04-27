@@ -33,11 +33,11 @@ import pandas as pd
 import os
 from datetime import datetime
 from tqdm import tqdm
-print ("✅ Imported necessary libraries")
+print ("[OK] Imported necessary libraries")
 import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))# Add parent directory to path so we can import config
 import config
-print ("✅ Imported config settings")
+print ("[OK] Imported config settings")
 
 
 def download_stock_data(ticker, start_date, end_date, save=True):
@@ -89,10 +89,10 @@ def download_stock_data(ticker, start_date, end_date, save=True):
             filepath = config.get_data_path(ticker, 'raw')
             stock_data.to_csv(filepath, index=False)
             if config.VERBOSE:
-                print(f"✅ Saved {len(stock_data)} rows to {filepath}")
+                print(f"[OK] Saved {len(stock_data)} rows to {filepath}")
 
         if config.VERBOSE:
-            print(f"✅ Downloaded {len(stock_data)} days of data for {ticker}")
+            print(f"[OK] Downloaded {len(stock_data)} days of data for {ticker}")
 
         return stock_data
 
@@ -131,7 +131,7 @@ def download_multiple_stocks(tickers, start_date, end_date, save=True):
         if data is not None:
             stock_data_dict[ticker] = data
 
-    print(f"\n✅ Successfully downloaded {len(stock_data_dict)}/{len(tickers)} stocks")
+    print(f"\n[OK] Successfully downloaded {len(stock_data_dict)}/{len(tickers)} stocks")
 
     return stock_data_dict
 
@@ -170,7 +170,7 @@ def load_stock_data(ticker, data_type='raw'):
             data['Date'] = pd.to_datetime(data['Date'])
 
         if config.VERBOSE:
-            print(f"✅ Loaded {len(data)} rows from {filepath}")
+            print(f"[OK] Loaded {len(data)} rows from {filepath}")
 
         return data
 
