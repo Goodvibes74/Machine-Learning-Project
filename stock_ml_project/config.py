@@ -61,32 +61,35 @@ PREDICTION_HORIZON = 1  # Next day prediction (binary: up/down)
 # Train/Test split ratio
 TEST_SIZE = 0.2  # 20% of data for testing
 
-# Random Forest hyperparameters - Conservative params for better accuracy
+# Random Forest hyperparameters - Less conservative with balanced weights
 RF_PARAMS = {
-    'n_estimators': 100,  # Conservative: Reduced from 200
-    'max_depth': 5,  # Conservative: Reduced from 8
-    'min_samples_split': 20,  # Conservative: Increased from 15
-    'min_samples_leaf': 10,  # Conservative: Increased from 5
+    'n_estimators': 200,  # More trees for better generalization
+    'max_depth': 10,  # Deeper trees to capture more patterns
+    'min_samples_split': 5,  # Less restrictive
+    'min_samples_leaf': 2,  # Less restrictive
+    'class_weight': 'balanced',  # Handle class imbalance
     'random_state': 42,
     'n_jobs': -1,  # Use all available CPU cores
 }
 
-# XGBoost hyperparameters - Conservative params for better accuracy
+# XGBoost hyperparameters - Less conservative with balanced weights
 XGB_PARAMS = {
-    'n_estimators': 100,  # Conservative: Reduced from 200
-    'max_depth': 4,  # Conservative: Reduced from 5
-    'learning_rate': 0.05,
+    'n_estimators': 200,  # More boosting rounds
+    'max_depth': 6,  # Deeper trees to capture more patterns
+    'learning_rate': 0.1,  # Higher learning rate
     'subsample': 0.8,
     'colsample_bytree': 0.8,
+    'scale_pos_weight': 1,  # Balanced classes
     'eval_metric': 'logloss',
     'random_state': 42
 }
 
-# SVM hyperparameters
+# SVM hyperparameters - Less conservative with balanced weights
 SVM_PARAMS = {
     'kernel': 'rbf',
-    'C': 1.0,
-    'gamma': 'scale',
+    'C': 10.0,  # Less regularization
+    'gamma': 'auto',  # Different kernel sensitivity
+    'class_weight': 'balanced',  # Handle class imbalance
     'probability': True,
     'random_state': 42
 }
