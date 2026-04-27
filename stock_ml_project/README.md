@@ -24,8 +24,14 @@ stock-prediction/
 │   ├── data_collection.py    # Download stock data
 │   ├── preprocessing.py       # Clean and validate data
 │   ├── feature_engineering.py # Create predictive features
-│   ├── models.py             # Train and evaluate ML models
+│   ├── models.py             # Train and evaluate Random Forest models
+│   ├── xgboost_model.py      # Train and evaluate XGBoost models
 │   └── backtesting.py        # Walk-forward validation
+│
+├── comparison/
+│   └── compare_models.py     # Compare RF vs XGBoost performance
+│
+├── outputs/                   # Generated plots and results
 │
 ├── notebooks/            # Jupyter notebooks for exploration (to be created)
 │   ├── 01_data_exploration.ipynb
@@ -81,8 +87,14 @@ python src/preprocessing.py
 # Test feature engineering
 python src/feature_engineering.py
 
-# Test model training
+# Test Random Forest model training
 python src/models.py
+
+# Test XGBoost model training
+python src/xgboost_model.py
+
+# Compare RF vs XGBoost models
+python comparison/compare_models.py
 
 # Test backtesting
 python src/backtesting.py
@@ -105,6 +117,7 @@ TICKERS = ['AAPL', 'MSFT', 'GOOGL']  # Stocks to analyze
 START_DATE = '2021-01-01'             # Data start
 ROLLING_WINDOWS = [5, 10, 20]         # Moving average periods
 RF_PARAMS = {'n_estimators': 100}     # Random Forest settings
+XGB_PARAMS = {'n_estimators': 100, 'max_depth': 6, 'learning_rate': 0.1}  # XGBoost settings
 ```
 
 ### 2. `data_collection.py` - Data Download
@@ -158,7 +171,7 @@ engineer_all_features(df)  # Apply all
 prepare_ml_data(df)        # Prepare X, y for ML
 ```
 
-### 5. `models.py` - Machine Learning
+### 5. `models.py` - Machine Learning (Random Forest)
 - **Purpose**: Train and evaluate Random Forest models
 - **Model**: scikit-learn RandomForestClassifier
 - **Evaluation**: Accuracy, precision, recall, F1-score
@@ -173,7 +186,36 @@ plot_feature_importance(model, features)
 compare_baseline(X_train, y_train, X_test, y_test)
 ```
 
-### 6. `backtesting.py` - Time Series Validation
+### 6. `xgboost_model.py` - XGBoost Models
+- **Purpose**: Train and evaluate XGBoost models
+- **Model**: XGBoost XGBClassifier
+- **Evaluation**: Accuracy, precision, recall, F1-score, ROC-AUC
+- **Visualization**: Confusion matrix, feature importance
+
+**Main functions**:
+```python
+train_xgboost(X_train, y_train)
+evaluate_xgboost_model(model, X_train, y_train, X_test, y_test)
+plot_xgb_confusion_matrix(y_true, y_pred)
+plot_xgb_feature_importance(model, features)
+```
+
+### 7. `comparison/compare_models.py` - Model Comparison
+- **Purpose**: Compare Random Forest vs XGBoost performance
+- **Metrics**: Accuracy, precision, recall, F1, ROC-AUC, training time
+- **Visualization**: ROC curves, metrics bar chart, feature importance comparison
+
+**Main functions**:
+```python
+get_metrics(model, X_test, y_test, model_name)
+build_comparison_table(rf_metrics, xgb_metrics)
+plot_roc_curves(rf_model, xgb_model, X_test, y_test)
+plot_metrics_bar_chart(rf_metrics, xgb_metrics)
+plot_feature_importance_comparison(rf_model, xgb_model, features)
+run_full_comparison(ticker='AAPL')
+```
+
+### 8. `backtesting.py` - Time Series Validation
 - **Purpose**: Proper validation for time series models
 - **Method**: Walk-forward validation
 - **Why**: Simulates real trading (train on past, test on future)
@@ -268,12 +310,22 @@ END_DATE = '2024-12-31'
 
 ### Adjust Model Parameters
 
-Edit `config.py`:
+Edit `config.py` for Random Forest:
 ```python
 RF_PARAMS = {
     'n_estimators': 200,    # More trees (slower but better)
     'max_depth': 15,        # Deeper trees (more complex)
     'min_samples_split': 10 # More conservative splitting
+}
+```
+
+Or for XGBoost:
+```python
+XGB_PARAMS = {
+    'n_estimators': 150,    # More boosting rounds
+    'max_depth': 8,         # Deeper trees
+    'learning_rate': 0.05,  # Lower learning rate for better generalization
+    'random_state': 42
 }
 ```
 

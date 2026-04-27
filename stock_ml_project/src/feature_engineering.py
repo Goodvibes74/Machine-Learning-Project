@@ -395,8 +395,10 @@ def prepare_ml_data(df, feature_cols=None):
 
     # Determine feature columns
     if feature_cols is None:
-        # Use all columns except these
-        exclude_cols = ['Date', 'Target', 'Future_Close', 'Ticker']
+        # LEAKAGE FIX: Exclude raw OHLCV columns to prevent direct leakage
+        # Raw price columns used alongside target derived from Close causes leakage
+        exclude_cols = ['Date', 'Target', 'Future_Close', 'Ticker', 
+                        'Open', 'High', 'Low', 'Close', 'Volume']
         feature_cols = [col for col in df_clean.columns if col not in exclude_cols]
 
     # Separate features and target

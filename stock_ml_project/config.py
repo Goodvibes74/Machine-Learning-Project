@@ -65,14 +65,25 @@ PREDICTION_HORIZON = 1  # Next day prediction (binary: up/down)
 # Train/Test split ratio
 TEST_SIZE = 0.2  # 20% of data for testing
 
-# Random Forest hyperparameters
+# Random Forest hyperparameters - LEAKAGE FIX: Conservative params to reduce overfitting
 RF_PARAMS = {
     'n_estimators': 100,  # Number of trees in the forest
-    'max_depth': 15,  # Maximum depth of each tree
-    'min_samples_split': 5,  # Minimum samples required to split a node
-    'min_samples_leaf': 2,  # Minimum samples required at leaf node
-    'random_state': 10,  # For reproducibility
+    'max_depth': 5,  # LEAKAGE FIX: Reduced from 15 to prevent overfitting
+    'min_samples_split': 20,  # LEAKAGE FIX: Increased from 5 to prevent overfitting
+    'min_samples_leaf': 10,  # LEAKAGE FIX: Increased from 2 to prevent overfitting
+    'random_state': 42,  # LEAKAGE FIX: Changed from 10 for reproducibility
     'n_jobs': -1,  # Use all available CPU cores
+}
+
+# XGBoost hyperparameters - LEAKAGE FIX: Conservative params to reduce overfitting
+XGB_PARAMS = {
+    'n_estimators': 100,
+    'max_depth': 4,  # LEAKAGE FIX: Reduced from 6 to prevent overfitting
+    'learning_rate': 0.05,  # LEAKAGE FIX: Reduced from 0.1 for better generalization
+    'subsample': 0.8,  # LEAKAGE FIX: Added to reduce overfitting
+    'colsample_bytree': 0.8,  # LEAKAGE FIX: Added to reduce overfitting
+    'eval_metric': 'logloss',
+    'random_state': 42
 }
 
 # BACKTESTING SETTINGS
