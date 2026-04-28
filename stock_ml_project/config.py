@@ -61,22 +61,22 @@ PREDICTION_HORIZON = 1  # Next day prediction (binary: up/down)
 # Train/Test split ratio
 TEST_SIZE = 0.2  # 20% of data for testing
 
-# Random Forest hyperparameters - Less conservative with balanced weights
+# Random Forest hyperparameters - Optimized for 20 features
 RF_PARAMS = {
-    'n_estimators': 200,  # More trees for better generalization
-    'max_depth': 10,  # Deeper trees to capture more patterns
-    'min_samples_split': 5,  # Less restrictive
-    'min_samples_leaf': 2,  # Less restrictive
+    'n_estimators': 150,  # Balanced
+    'max_depth': 8,  # Moderate depth
+    'min_samples_split': 10,  # Moderate
+    'min_samples_leaf': 5,  # Moderate
     'class_weight': 'balanced',  # Handle class imbalance
     'random_state': 42,
     'n_jobs': -1,  # Use all available CPU cores
 }
 
-# XGBoost hyperparameters - Less conservative with balanced weights
+# XGBoost hyperparameters - Optimized for 20 features
 XGB_PARAMS = {
-    'n_estimators': 200,  # More boosting rounds
-    'max_depth': 6,  # Deeper trees to capture more patterns
-    'learning_rate': 0.1,  # Higher learning rate
+    'n_estimators': 150,  # Balanced
+    'max_depth': 5,  # Moderate depth
+    'learning_rate': 0.08,  # Moderate
     'subsample': 0.8,
     'colsample_bytree': 0.8,
     'scale_pos_weight': 1,  # Balanced classes
@@ -84,10 +84,10 @@ XGB_PARAMS = {
     'random_state': 42
 }
 
-# SVM hyperparameters - Less conservative with balanced weights
+# SVM hyperparameters - Optimized for 20 features
 SVM_PARAMS = {
     'kernel': 'rbf',
-    'C': 10.0,  # Less regularization
+    'C': 5.0,  # Moderate regularization
     'gamma': 'auto',  # Different kernel sensitivity
     'class_weight': 'balanced',  # Handle class imbalance
     'probability': True,
@@ -121,6 +121,17 @@ ENGINEERED_FEATURES = [
     'Momentum',  # Price momentum
     'Volume_Change',  # Volume change percentage
     'HL_Spread',  # High-Low spread
+    # Technical indicators
+    'RSI_14',  # Relative Strength Index
+    'MACD',  # Moving Average Convergence Divergence
+    'MACD_signal',  # MACD signal line
+    'BB_upper',  # Bollinger Band upper
+    'BB_lower',  # Bollinger Band lower
+    'BB_width',  # Bollinger Band width
+    'BB_position',  # Bollinger Band position
+    'OBV',  # On-Balance Volume
+    'OBV_change',  # OBV change
+    'ATR_14',  # Average True Range
 ]
 
 # Rolling average features (will be dynamically created)

@@ -534,13 +534,22 @@ def engineer_all_features(df):
     df = df.copy()
 
     # Apply each feature engineering step
-    # Original 10 features (no technical indicators - they hurt performance)
+    # Original 10 features + technical indicators for better performance
     df = calculate_returns(df)
     df = add_rolling_averages(df)
     df = calculate_volatility(df)
     df = calculate_momentum(df)
     df = calculate_volume_change(df)
     df = calculate_hl_spread(df)
+    
+    # Add technical indicators (RSI, MACD, Bollinger Bands, OBV, ATR)
+    df = calculate_rsi(df)
+    df = calculate_macd(df)
+    df = calculate_bollinger_bands(df)
+    df = calculate_obv(df)
+    df = calculate_atr(df)
+    
+    # Sentiment features
     df = create_sentiment_proxy(df)
     df = smooth_sentiment(df)
     df = create_target_variable(df)
