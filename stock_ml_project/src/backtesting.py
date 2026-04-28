@@ -13,10 +13,10 @@ Key Concepts:
 import pandas as pd
 import numpy as np
 from sklearn.model_selection import TimeSeriesSplit
-from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import accuracy_score, classification_report
 import matplotlib.pyplot as plt
 import config
+from src.models import train_random_forest
 
 
 def walk_forward_validation(X, y, feature_names, n_splits=None):
@@ -85,9 +85,8 @@ def walk_forward_validation(X, y, feature_names, n_splits=None):
         print(f"Training samples: {len(X_train)}")
         print(f"Testing samples: {len(X_test)}")
 
-        # Train model for this fold
-        model = RandomForestClassifier(**config.RF_PARAMS, verbose=0)
-        model.fit(X_train, y_train)
+        # Train model with threshold calibration for this fold
+        model = train_random_forest(X_train, y_train)
 
         # Predict
         predictions = model.predict(X_test)

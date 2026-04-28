@@ -45,8 +45,9 @@ ROLLING_WINDOWS = [5, 10, 20]  # Short, medium, long-term trends
 # Volatility calculation window
 VOLATILITY_WINDOW = 20  # 20-day volatility (approximately 1 month)
 
-# Momentum calculation window 
-MOMENTUM_WINDOW = 5  # 5-day momentum
+# Momentum calculation windows — multiple periods capture different regimes
+MOMENTUM_WINDOWS = [3, 5, 10, 20]  # short, short-med, medium, long
+MOMENTUM_WINDOW = 5  # kept for backward compat (sentiment proxy uses this)
 
 # TARGET VARIABLE SETTINGS
 # Prediction horizon (how many days ahead to predict) , prediction horizon is the number of days into the future that we want to predict whether the stock price will go up or down. For example, if PREDICTION_HORIZON is set to 1, we are trying to predict whether the stock price will be higher or lower tomorrow compared to today.
@@ -61,15 +62,16 @@ PREDICTION_HORIZON = 1  # Next day prediction (binary: up/down)
 # Train/Test split ratio
 TEST_SIZE = 0.2  # 20% of data for testing
 
-# Random Forest hyperparameters - Optimized for 20 features
+# Random Forest hyperparameters
 RF_PARAMS = {
-    'n_estimators': 150,  # Balanced
-    'max_depth': 8,  # Moderate depth
-    'min_samples_split': 10,  # Moderate
-    'min_samples_leaf': 5,  # Moderate
-    'class_weight': 'balanced',  # Handle class imbalance
+    'n_estimators': 300,       # More trees → lower variance
+    'max_depth': 4,            # Shallow trees are key for noisy financial data (was 8)
+    'min_samples_split': 30,   # Hard split threshold → forces generalization (was 10)
+    'min_samples_leaf': 15,    # Larger leaves → smoother decision boundaries (was 5)
+    'max_features': 'sqrt',    # Classic RF: sqrt(n_features) per split
+    'class_weight': 'balanced',
     'random_state': 42,
-    'n_jobs': -1,  # Use all available CPU cores
+    'n_jobs': -1,
 }
 
 # XGBoost hyperparameters - Optimized for 20 features
@@ -116,27 +118,36 @@ BASE_FEATURES = ['Open', 'High', 'Low', 'Close', 'Volume']
 
 # Features to create (will be added by feature engineering)
 ENGINEERED_FEATURES = [
-    'Returns',  # Daily returns
-    'Volatility',  # Rolling volatility
-    'Momentum',  # Price momentum
-    'Volume_Change',  # Volume change percentage
-    'HL_Spread',  # High-Low spread
+    'Returns',          # Daily pct return
+    'Volatility',       # Rolling std of returns
+    'Volume_Change',    # Pct change in volume
+    'HL_Spread',        # (High-Low)/Close — intraday range
     # Technical indicators
-    'RSI_14',  # Relative Strength Index
-    'MACD',  # Moving Average Convergence Divergence
-    'MACD_signal',  # MACD signal line
-    'BB_upper',  # Bollinger Band upper
-    'BB_lower',  # Bollinger Band lower
-    'BB_width',  # Bollinger Band width
-    'BB_position',  # Bollinger Band position
-    'OBV',  # On-Balance Volume
-    'OBV_change',  # OBV change
-    'ATR_14',  # Average True Range
+    'RSI_14',
+    'MACD',
+    'MACD_signal',
+    'MACD_histogram',   # MACD - signal: zero-cross is the key signal
+    'BB_upper',
+    'BB_lower',
+    'BB_width',
+    'BB_position',
+    'OBV',
+    'OBV_change',
+    'ATR_14',
 ]
 
-# Rolling average features (will be dynamically created)
+# Rolling average features
 for window in ROLLING_WINDOWS:
     ENGINEERED_FEATURES.append(f'SMA_{window}')
+
+# Multi-window normalized momentum (pct_change — scale-independent)
+for window in MOMENTUM_WINDOWS:
+    ENGINEERED_FEATURES.append(f'Momentum_{window}')
+
+# Price/SMA ratios — how far price is from its trend
+for window in ROLLING_WINDOWS:
+    ENGINEERED_FEATURES.append(f'Price_SMA_{window}_ratio')
+ENGINEERED_FEATURES.append('SMA_5_20_ratio')  # golden-cross signal
 
 # Sentiment features (for future use)
 SENTIMENT_FEATURES = [
