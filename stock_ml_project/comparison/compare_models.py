@@ -76,12 +76,14 @@ def get_metrics(model, X_test, y_test, model_name):
 
 def get_svm_metrics(model, scaler, X_test, y_test, model_name):
     """
-    Get performance metrics for a trained SVM model
+    Get performance metrics for a trained SVM model.
 
-    SVM requires scaled data, so this function handles the scaling.
+    Respects the calibrated threshold stored on the model during training
+    so predictions are consistent with the two-sided behaviour seen at
+    training time (not all-one-class from the raw 0.5 cut-off).
 
     Args:
-        model: Trained SVM model
+        model: Trained SVM model (with ._threshold attribute)
         scaler: Fitted StandardScaler
         X_test: Test features
         y_test: Test labels
@@ -90,20 +92,19 @@ def get_svm_metrics(model, scaler, X_test, y_test, model_name):
     Returns:
         dict: Dictionary containing model name and metrics
     """
-    # Scale the data
     X_test_scaled = scaler.transform(X_test)
 
-    # Make predictions
-    y_pred = model.predict(X_test_scaled)
-
-    # Get probability predictions for ROC-AUC (if available)
+    # Use calibrated threshold if set during training
+    thresh = getattr(model, '_threshold', 0.5)
     try:
         y_proba = model.predict_proba(X_test_scaled)[:, 1]
+        y_pred = (y_proba >= thresh).astype(int)
         roc_auc = roc_auc_score(y_test, y_proba)
     except Exception:
+        y_pred = model.predict(X_test_scaled)
+        y_proba = None
         roc_auc = None
 
-    # Calculate metrics
     metrics = {
         'model': model_name,
         'accuracy': accuracy_score(y_test, y_pred),
@@ -522,34 +523,21 @@ def run_full_comparison(ticker='AAPL'):
     # Build and display comparison table
     comparison_df = build_comparison_table(rf_metrics, xgb_metrics, svm_metrics)
 
-    # IMPROVEMENT: Add data summary section
+    # Data summary — reuse `featured` already in memory (no reload needed)
     print("\n" + "=" * 70)
     print(" " * 20 + "DATA SUMMARY")
     print("=" * 70)
-    
+
     print(f"\nNumber of features: {len(features)}")
     print(f"Feature names: {features}")
-    
-    # Get date ranges from the original dataframe
-    from src.data_collection import load_stock_data
-    from src.preprocessing import preprocess_stock_data
-    from src.feature_engineering import engineer_all_features
-    
-    # Reload data to get dates (same data used for training)
-    raw_data = load_stock_data(ticker, 'raw')
-    processed = preprocess_stock_data(raw_data)
-    featured = engineer_all_features(processed)
-    
-    # Get dates for train/test split
+
     featured_clean = featured.dropna()
-    dates = featured_clean['Date'].reset_index(drop=True)
-    split_idx = int(len(dates) * 0.8)
-    
-    train_dates = dates.iloc[:split_idx]
-    test_dates = dates.iloc[split_idx:]
-    
-    print(f"\nTraining data date range: {train_dates.min().strftime('%Y-%m-%d')} to {train_dates.max().strftime('%Y-%m-%d')}")
-    print(f"Test data date range: {test_dates.min().strftime('%Y-%m-%d')} to {test_dates.max().strftime('%Y-%m-%d')}")
+    if 'Date' in featured_clean.columns:
+        dates = featured_clean['Date'].reset_index(drop=True)
+        train_dates = dates.iloc[:split_idx]
+        test_dates  = dates.iloc[split_idx:]
+        print(f"\nTraining data: {train_dates.min().strftime('%Y-%m-%d')} to {train_dates.max().strftime('%Y-%m-%d')}")
+        print(f"Test data:     {test_dates.min().strftime('%Y-%m-%d')} to {test_dates.max().strftime('%Y-%m-%d')}")
     
     # Class balance in test set
     up_pct = (y_test.sum() / len(y_test) * 100)

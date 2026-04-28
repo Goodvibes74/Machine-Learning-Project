@@ -157,23 +157,20 @@ def train_random_forest(X_train, y_train, params=None, calibrate=True):
     return model
 
 
-def train_svm(X_train, y_train, params=None, calibrate=True):
+def train_svm(X_train, y_train, params=None):
     """
-    Train a Support Vector Machine (SVM) classifier with threshold calibration.
+    Train a Support Vector Machine (SVM) classifier
 
-    SVM requires StandardScaler (fit on training data only).
-    Threshold calibration uses the last 20% of training data to find the
-    probability cut-off that maximises accuracy without touching test data.
+    SVM works by finding the optimal hyperplane that separates classes.
+    Uses kernel trick to handle non-linear relationships.
 
     Args:
         X_train (pd.DataFrame): Training features
         y_train (pd.Series): Training target
         params (dict): Model hyperparameters (default from config)
-        calibrate (bool): Whether to calibrate the decision threshold
 
     Returns:
-        tuple: (model, StandardScaler)
-            model has a .threshold attribute and predict() uses it automatically
+        tuple: (SVM model, StandardScaler) - scaler needed for preprocessing test data
     """
     if params is None:
         params = config.SVM_PARAMS
@@ -184,42 +181,19 @@ def train_svm(X_train, y_train, params=None, calibrate=True):
         print("=" * 60)
         print(f"Parameters: {params}")
 
+    # SVM requires feature scaling (important!)
+    # StandardScaler normalizes features to have mean=0 and std=1
     scaler = StandardScaler()
-
-    if calibrate and len(X_train) >= 120:
-        cal_split = int(len(X_train) * 0.8)
-        X_fit = X_train.iloc[:cal_split]
-        X_cal = X_train.iloc[cal_split:]
-        y_fit = y_train.iloc[:cal_split]
-        y_cal = y_train.iloc[cal_split:]
-
-        # Scaler must be fit only on training portion, not calibration portion
-        X_fit_scaled = scaler.fit_transform(X_fit)
-        X_cal_scaled = scaler.transform(X_cal)
-
-        model = SVC(**params)
-        model.fit(X_fit_scaled, y_fit)
-
-        proba_cal = model.predict_proba(X_cal_scaled)[:, 1]
-        best_thresh, best_acc = 0.5, 0.0
-        for thresh in np.arange(0.30, 0.71, 0.01):
-            pred = (proba_cal >= thresh).astype(int)
-            acc = accuracy_score(y_cal, pred)
-            if acc > best_acc:
-                best_acc = acc
-                best_thresh = float(thresh)
-
-        model._threshold = best_thresh
-
-        if config.VERBOSE:
-            print(f"✅ Calibrated threshold: {best_thresh:.2f} (val acc={best_acc:.4f})")
-
-        return model, scaler
-
     X_train_scaled = scaler.fit_transform(X_train)
+
+    # Initialize the model
     model = SVC(**params)
+
+    # Train the model
+    if config.VERBOSE:
+        print("\nTraining model...")
+
     model.fit(X_train_scaled, y_train)
-    model._threshold = 0.5
 
     if config.VERBOSE:
         print("✅ Model training complete!")
@@ -312,18 +286,13 @@ def evaluate_svm(model, scaler, X_train, y_train, X_test, y_test):
         print("SVM MODEL EVALUATION")
         print("=" * 60)
 
-    # Scale using the scaler fit during training (never refit on test data)
+    # Scale the data using the fitted scaler
     X_train_scaled = scaler.transform(X_train)
     X_test_scaled = scaler.transform(X_test)
 
-    # Use calibrated threshold if available, otherwise default SVC.predict
-    thresh = getattr(model, '_threshold', 0.5)
-    if thresh != 0.5:
-        train_pred = (model.predict_proba(X_train_scaled)[:, 1] >= thresh).astype(int)
-        test_pred = (model.predict_proba(X_test_scaled)[:, 1] >= thresh).astype(int)
-    else:
-        train_pred = model.predict(X_train_scaled)
-        test_pred = model.predict(X_test_scaled)
+    # Make predictions
+    train_pred = model.predict(X_train_scaled)
+    test_pred = model.predict(X_test_scaled)
 
     # Calculate metrics
     results = {

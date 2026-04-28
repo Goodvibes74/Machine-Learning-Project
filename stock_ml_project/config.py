@@ -74,27 +74,24 @@ RF_PARAMS = {
     'n_jobs': -1,
 }
 
-# XGBoost hyperparameters
+# XGBoost hyperparameters - Optimized for 20 features
 XGB_PARAMS = {
-    'n_estimators': 400,        # More rounds — compensates for lower learning rate
-    'max_depth': 4,             # Shallow trees prevent overfitting (was 5)
-    'learning_rate': 0.03,      # Lower LR = better generalization (was 0.08)
-    'subsample': 0.8,           # Row sampling per tree
-    'colsample_bytree': 0.7,    # Feature sampling per tree (28 features → use 70%)
-    'min_child_weight': 10,     # Min sample weight per leaf — key anti-overfit param
-    'reg_alpha': 0.1,           # L1 regularization (sparsity)
-    'reg_lambda': 2.0,          # L2 regularization (was default 1.0)
-    'scale_pos_weight': 1,      # Classes roughly balanced (334 down / 395 up ≈ 1)
+    'n_estimators': 150,  # Balanced
+    'max_depth': 5,  # Moderate depth
+    'learning_rate': 0.08,  # Moderate
+    'subsample': 0.8,
+    'colsample_bytree': 0.8,
+    'scale_pos_weight': 1,  # Balanced classes
     'eval_metric': 'logloss',
     'random_state': 42
 }
 
-# SVM hyperparameters
+# SVM hyperparameters - Optimized for 20 features
 SVM_PARAMS = {
     'kernel': 'rbf',
-    'C': 0.5,           # Lower C = more regularization for noisy financial data (was 5.0)
-    'gamma': 'scale',   # 1/(n_features * X.var()) — correct for varied feature scales (was 'auto')
-    'class_weight': 'balanced',
+    'C': 5.0,  # Moderate regularization
+    'gamma': 'auto',  # Different kernel sensitivity
+    'class_weight': 'balanced',  # Handle class imbalance
     'probability': True,
     'random_state': 42
 }

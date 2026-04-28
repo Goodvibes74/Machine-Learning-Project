@@ -32,21 +32,6 @@ from sklearn.metrics import (
 )
 import config
 
-
-class _ThresholdXGB:
-    """XGBoost wrapper with a calibrated decision threshold."""
-    def __init__(self, model, threshold):
-        self._model = model
-        self.threshold = threshold
-        self.feature_importances_ = model.feature_importances_
-
-    def predict(self, X):
-        proba = self._model.predict_proba(X)[:, 1]
-        return (proba >= self.threshold).astype(int)
-
-    def predict_proba(self, X):
-        return self._model.predict_proba(X)
-
 # Try to import XGBoost, handle if not installed
 try:
     from xgboost import XGBClassifier
@@ -58,22 +43,29 @@ except ImportError:
     )
 
 
-def train_xgboost(X_train, y_train, params=None, calibrate=True):
+def train_xgboost(X_train, y_train, params=None):
     """
-    Train an XGBoost classifier with threshold calibration.
+    Train an XGBoost classifier
 
-    Uses the final 20% of training data (chronologically) to find the
-    probability threshold that maximises accuracy. Same approach as the
-    calibrated RF — no test data is used so there is no leakage.
+    XGBoost works by:
+    1. Building decision trees sequentially
+    2. Each tree corrects errors from previous trees
+    3. Final prediction is weighted sum of all trees
 
     Args:
-        X_train: Training features
-        y_train: Training target
+        X_train (pd.DataFrame or np.array): Training features
+        y_train (pd.Series or np.array): Training target
         params (dict): Model hyperparameters (default from config)
-        calibrate (bool): Whether to calibrate the decision threshold
 
     Returns:
-        _ThresholdXGB or XGBClassifier: Trained model
+        XGBClassifier: Trained model
+
+    Hyperparameters explained:
+    - n_estimators: Number of boosting rounds (trees)
+    - max_depth: Maximum depth of each tree
+    - learning_rate: Step size shrinkage (lower = more trees needed but better generalization)
+    - eval_metric: Evaluation metric for training
+    - random_state: Seed for reproducibility
     """
     if params is None:
         params = config.XGB_PARAMS
@@ -84,30 +76,12 @@ def train_xgboost(X_train, y_train, params=None, calibrate=True):
         print("=" * 60)
         print(f"Parameters: {params}")
 
+    # Initialize the model
     model = XGBClassifier(**params)
 
-    if calibrate and len(X_train) >= 120:
-        cal_split = int(len(X_train) * 0.8)
-        X_fit = X_train.iloc[:cal_split] if hasattr(X_train, 'iloc') else X_train[:cal_split]
-        X_cal = X_train.iloc[cal_split:] if hasattr(X_train, 'iloc') else X_train[cal_split:]
-        y_fit = y_train.iloc[:cal_split] if hasattr(y_train, 'iloc') else y_train[:cal_split]
-        y_cal = y_train.iloc[cal_split:] if hasattr(y_train, 'iloc') else y_train[cal_split:]
-
-        model.fit(X_fit, y_fit)
-
-        proba_cal = model.predict_proba(X_cal)[:, 1]
-        best_thresh, best_acc = 0.5, 0.0
-        for thresh in np.arange(0.30, 0.71, 0.01):
-            pred = (proba_cal >= thresh).astype(int)
-            acc = accuracy_score(y_cal, pred)
-            if acc > best_acc:
-                best_acc = acc
-                best_thresh = float(thresh)
-
-        if config.VERBOSE:
-            print(f"✅ Calibrated threshold: {best_thresh:.2f} (val acc={best_acc:.4f})")
-
-        return _ThresholdXGB(model, best_thresh)
+    # Train the model
+    if config.VERBOSE:
+        print("\nTraining model...")
 
     model.fit(X_train, y_train)
 
