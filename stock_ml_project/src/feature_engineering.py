@@ -119,30 +119,33 @@ def calculate_volatility(df, window=None): # responsible for calculating rolling
     return df
 
 
-def calculate_momentum(df, window=None): # responsible for calculating price momentum, which indicates the strength and direction of price movement by comparing the current price to the price from a specified number of days ago.
+def calculate_momentum(df, windows=None): # responsible for calculating price momentum, which indicates the strength and direction of price movement by comparing the current price to the price from a specified number of days ago.
     """
-    Calculate price momentum
+    Calculate normalized price momentum for multiple windows.
 
-    Momentum = Today's price - Price N days ago
-    Shows the strength and direction of price movement
+    Momentum = (Close[t] - Close[t-N]) / Close[t-N]  (percentage return)
+    Normalized by price so it's comparable across stocks and time periods.
+    Multiple windows capture short, medium, and long-term momentum regimes.
 
     Args:
         df (pd.DataFrame): Stock data with 'Close' column
-        window (int): Lookback period (default from config)
+        windows (list): Lookback periods (default from config.MOMENTUM_WINDOWS)
 
     Returns:
-        pd.DataFrame: Data with 'Momentum' column added
+        pd.DataFrame: Data with 'Momentum_N' columns added for each window
     """
     df = df.copy()
 
-    if window is None:
-        window = config.MOMENTUM_WINDOW
+    if windows is None:
+        windows = config.MOMENTUM_WINDOWS
 
-    # Current price minus price N days ago
-    df['Momentum'] = df['Close'] - df['Close'].shift(window)
+    for window in windows:
+        # pct_change(N) = (Close[t] - Close[t-N]) / Close[t-N]
+        # Normalized: a 5-day move of 2% means the same regardless of stock price
+        df[f'Momentum_{window}'] = df['Close'].pct_change(window)
 
-    if config.VERBOSE:
-        print(f"✅ Added 'Momentum' feature (window={window})")
+        if config.VERBOSE:
+            print(f"✅ Added 'Momentum_{window}' feature")
 
     return df
 
@@ -218,21 +221,16 @@ def calculate_rsi(df, window=14):
     """
     df = df.copy()
 
-    # Use shifted close to prevent look-ahead bias
-    close_shifted = df['Close'].shift(1)
+    # Use today's close — no look-ahead bias since we know today's close
+    # when predicting tomorrow's direction. shift(1) was overly conservative.
+    delta = df['Close'].diff()
 
-    # Calculate price changes using shifted close
-    delta = close_shifted.diff()
-
-    # Separate gains and losses
     gains = delta.where(delta > 0, 0)
     losses = (-delta).where(delta < 0, 0)
 
-    # Calculate average gains and losses using rolling mean
     avg_gain = gains.rolling(window=window).mean()
     avg_loss = losses.rolling(window=window).mean()
 
-    # Calculate RS and RSI
     rs = avg_gain / avg_loss
     df['RSI_14'] = 100 - (100 / (1 + rs))
 
@@ -261,19 +259,16 @@ def calculate_macd(df):
     """
     df = df.copy()
 
-    # Use shifted close to prevent look-ahead bias
-    close_shifted = df['Close'].shift(1)
-
-    # Calculate MACD line (12-day EWM - 26-day EWM)
-    ema_12 = close_shifted.ewm(span=12, adjust=False).mean()
-    ema_26 = close_shifted.ewm(span=26, adjust=False).mean()
+    # Use today's close — valid since we know it when predicting tomorrow
+    ema_12 = df['Close'].ewm(span=12, adjust=False).mean()
+    ema_26 = df['Close'].ewm(span=26, adjust=False).mean()
     df['MACD'] = ema_12 - ema_26
-
-    # Calculate Signal line (9-day EWM of MACD)
     df['MACD_signal'] = df['MACD'].ewm(span=9, adjust=False).mean()
+    # Histogram crosses zero when momentum flips — the primary trading signal
+    df['MACD_histogram'] = df['MACD'] - df['MACD_signal']
 
     if config.VERBOSE:
-        print("✅ Added 'MACD' and 'MACD_signal' features")
+        print("✅ Added 'MACD', 'MACD_signal', 'MACD_histogram' features")
 
     return df
 
@@ -299,21 +294,13 @@ def calculate_bollinger_bands(df, window=20):
     """
     df = df.copy()
 
-    # Use shifted close to prevent look-ahead bias
-    close_shifted = df['Close'].shift(1)
+    # Use today's close — consistent with the BB_position which also uses today's close
+    sma = df['Close'].rolling(window=window).mean()
+    std = df['Close'].rolling(window=window).std()
 
-    # Calculate SMA and standard deviation
-    sma = close_shifted.rolling(window=window).mean()
-    std = close_shifted.rolling(window=window).std()
-
-    # Calculate Bollinger Bands
     df['BB_upper'] = sma + 2 * std
     df['BB_lower'] = sma - 2 * std
-
-    # Calculate Band Width (normalized)
     df['BB_width'] = (df['BB_upper'] - df['BB_lower']) / sma
-
-    # Calculate Band Position
     df['BB_position'] = (df['Close'] - df['BB_lower']) / (df['BB_upper'] - df['BB_lower'])
 
     if config.VERBOSE:
@@ -392,6 +379,42 @@ def calculate_atr(df, window=14):
 
     if config.VERBOSE:
         print(f"✅ Added 'ATR_14' feature (window={window})")
+
+    return df
+
+
+def calculate_price_sma_ratios(df, windows=None):
+    """
+    Calculate price-to-SMA ratios and SMA crossover signals.
+
+    These are normalized, scale-free trend signals:
+    - Price_SMA_N_ratio: How far above/below its N-day average the price is.
+      Positive = price above trend (bullish), negative = below (bearish).
+    - SMA_5_20_ratio: Fast SMA vs slow SMA (golden-cross / death-cross signal).
+      Positive = short-term trend above long-term (bullish momentum).
+
+    Args:
+        df (pd.DataFrame): Data with 'Close' and SMA_N columns already computed
+        windows (list): Windows to use (must match what add_rolling_averages created)
+
+    Returns:
+        pd.DataFrame: Data with Price_SMA_N_ratio and SMA_5_20_ratio columns
+    """
+    df = df.copy()
+
+    if windows is None:
+        windows = config.ROLLING_WINDOWS
+
+    for window in windows:
+        sma_col = f'SMA_{window}'
+        if sma_col in df.columns:
+            df[f'Price_SMA_{window}_ratio'] = (df['Close'] / df[sma_col]) - 1
+
+    if 'SMA_5' in df.columns and 'SMA_20' in df.columns:
+        df['SMA_5_20_ratio'] = (df['SMA_5'] / df['SMA_20']) - 1
+
+    if config.VERBOSE:
+        print("✅ Added Price/SMA ratio features")
 
     return df
 
@@ -534,22 +557,24 @@ def engineer_all_features(df):
     df = df.copy()
 
     # Apply each feature engineering step
-    # Original 10 features + technical indicators for better performance
     df = calculate_returns(df)
-    df = add_rolling_averages(df)
+    df = add_rolling_averages(df)          # SMA_5, SMA_10, SMA_20
     df = calculate_volatility(df)
-    df = calculate_momentum(df)
+    df = calculate_momentum(df)            # Momentum_3, Momentum_5, Momentum_10, Momentum_20
     df = calculate_volume_change(df)
     df = calculate_hl_spread(df)
-    
-    # Add technical indicators (RSI, MACD, Bollinger Bands, OBV, ATR)
+
+    # Technical indicators (use today's close — no look-ahead since target is tomorrow)
     df = calculate_rsi(df)
-    df = calculate_macd(df)
+    df = calculate_macd(df)                # MACD, MACD_signal, MACD_histogram
     df = calculate_bollinger_bands(df)
     df = calculate_obv(df)
     df = calculate_atr(df)
-    
-    # Sentiment features
+
+    # Normalized trend signals (requires SMAs to be computed first)
+    df = calculate_price_sma_ratios(df)   # Price_SMA_N_ratio, SMA_5_20_ratio
+
+    # Sentiment proxy
     df = create_sentiment_proxy(df)
     df = smooth_sentiment(df)
     df = create_target_variable(df)
