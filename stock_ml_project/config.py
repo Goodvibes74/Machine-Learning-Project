@@ -96,14 +96,14 @@ SVM_PARAMS = {
 
 # BACKTESTING SETTINGS
 # Number of splits for walk-forward validation
-N_SPLITS = 5  # 5-fold time series cross-validation
+N_SPLITS = 10  # 5-fold time series cross-validation
 
 # SENTIMENT ANALYSIS SETTINGS (Optional - for future use)
 # News API settings (you'll need to sign up for API key)
 NEWS_API_KEY = None  # Set this if you get a NewsAPI key
 
 # Sentiment smoothing window
-SENTIMENT_WINDOW = 3  # 3-day moving average of sentiment
+SENTIMENT_WINDOW = 1  # 3-day moving average of sentiment
 
 # LOGGING SETTINGS
 # Verbosity level , Verbosity is the level of detail in console output. Set to True for detailed logs, False for minimal output.
