@@ -34,9 +34,9 @@ TICKERS = [
 ]
 
 # Date range for historical data
-# Default: Last 3 years of data
-END_DATE = datetime.now().strftime('%Y-%m-%d') # Today's date
-START_DATE = (datetime.now() - timedelta(days=3 * 365)).strftime('%Y-%m-%d') # 3 years ago
+# Default: Last 5 years of data — more data → better generalisation for financial ML
+END_DATE = datetime.now().strftime('%Y-%m-%d')
+START_DATE = (datetime.now() - timedelta(days=5 * 365)).strftime('%Y-%m-%d')
 
 # FEATURE ENGINEERING SETTINGS
 # Rolling window sizes for moving averages (in trading days)
@@ -74,24 +74,32 @@ RF_PARAMS = {
     'n_jobs': -1,
 }
 
-# XGBoost hyperparameters - Optimized for 20 features
+# XGBoost hyperparameters
+# Strong regularization is needed for financial data (~600 training samples,
+# high noise).  Without it XGBoost trivially memorises the training set.
 XGB_PARAMS = {
-    'n_estimators': 150,  # Balanced
-    'max_depth': 5,  # Moderate depth
-    'learning_rate': 0.08,  # Moderate
-    'subsample': 0.8,
-    'colsample_bytree': 0.8,
-    'scale_pos_weight': 1,  # Balanced classes
+    'n_estimators': 200,
+    'max_depth': 3,          # Shallow trees prevent memorisation
+    'learning_rate': 0.05,   # Small steps → better generalisation
+    'subsample': 0.7,
+    'colsample_bytree': 0.7,
+    'min_child_weight': 10,  # Require ≥10 samples per leaf
+    'gamma': 0.2,            # Min gain to make a split
+    'reg_alpha': 0.5,        # L1 regularisation
+    'reg_lambda': 3.0,       # L2 regularisation (default=1)
+    'scale_pos_weight': 1,
     'eval_metric': 'logloss',
     'random_state': 42
 }
 
-# SVM hyperparameters - Optimized for 20 features
+# SVM hyperparameters
+# Low C keeps a wide margin (better generalisation on noisy data).
+# gamma='scale' normalises by n_features * X.var() — more stable than 'auto'.
 SVM_PARAMS = {
     'kernel': 'rbf',
-    'C': 5.0,  # Moderate regularization
-    'gamma': 'auto',  # Different kernel sensitivity
-    'class_weight': 'balanced',  # Handle class imbalance
+    'C': 0.5,
+    'gamma': 'scale',
+    'class_weight': 'balanced',
     'probability': True,
     'random_state': 42
 }
@@ -118,29 +126,39 @@ BASE_FEATURES = ['Open', 'High', 'Low', 'Close', 'Volume']
 
 # Features to create (will be added by feature engineering)
 ENGINEERED_FEATURES = [
+    # Returns & basic price features
     'Returns',          # Daily pct return
-    'Volatility',       # Rolling std of returns
+    'Volatility',       # Rolling std of returns (20-day)
     'Volume_Change',    # Pct change in volume
     'HL_Spread',        # (High-Low)/Close — intraday range
-    # Technical indicators
+
+    # Lagged return features (short-term momentum/mean-reversion signals)
+    'Returns_lag1',     # Previous day's return
+    'Returns_lag2',     # Two days ago return
+    'Returns_lag3',     # Three days ago return
+
+    # Volume features
+    'Volume_Ratio',     # Current volume / 20-day avg volume
+
+    # Calendar effect
+    'DayOfWeek',        # 0=Monday … 4=Friday
+
+    # Technical indicators — all normalised (% of price or unitless)
     'RSI_14',
-    'MACD',
-    'MACD_signal',
-    'MACD_histogram',   # MACD - signal: zero-cross is the key signal
-    'BB_upper',
-    'BB_lower',
-    'BB_width',
-    'BB_position',
-    'OBV',
-    'OBV_change',
-    'ATR_14',
+    'MACD',             # (EMA12 - EMA26) / Close * 100
+    'MACD_signal',      # 9-day EMA of MACD / Close * 100
+    'MACD_histogram',   # MACD - signal (zero-cross = momentum flip)
+    'BB_width',         # (upper - lower) / SMA  — normalised band width
+    'BB_position',      # (Close - lower) / (upper - lower)  — 0..1
+    'OBV_change',       # OBV pct change (raw cumulative OBV excluded)
+    'ATR_14',           # Average True Range / Close * 100
 ]
 
 # Rolling average features
 for window in ROLLING_WINDOWS:
     ENGINEERED_FEATURES.append(f'SMA_{window}')
 
-# Multi-window normalized momentum (pct_change — scale-independent)
+# Multi-window normalised momentum (pct_change — scale-independent)
 for window in MOMENTUM_WINDOWS:
     ENGINEERED_FEATURES.append(f'Momentum_{window}')
 
@@ -149,10 +167,10 @@ for window in ROLLING_WINDOWS:
     ENGINEERED_FEATURES.append(f'Price_SMA_{window}_ratio')
 ENGINEERED_FEATURES.append('SMA_5_20_ratio')  # golden-cross signal
 
-# Sentiment features (for future use)
+# Sentiment features
 SENTIMENT_FEATURES = [
     'Sentiment_Proxy',  # Price-based sentiment proxy
-    'Sentiment_SMA',  # Smoothed sentiment
+    'Sentiment_SMA',    # Smoothed sentiment
 ]
 
 # All features that will be used for training

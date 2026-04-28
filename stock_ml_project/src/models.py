@@ -16,6 +16,7 @@ import numpy as np
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.svm import SVC
 from sklearn.preprocessing import StandardScaler
+from sklearn.calibration import CalibratedClassifierCV
 from sklearn.metrics import (
     accuracy_score,
     classification_report,
@@ -73,45 +74,49 @@ def split_train_test(X, y, test_size=None):
     return X_train, X_test, y_train, y_test
 
 
-class _ThresholdRF:
+class _CalibratedRF:
     """
-    RandomForest wrapper that uses a calibrated decision threshold.
-    Exposes the same interface (predict, predict_proba, feature_importances_)
-    so downstream code needs no changes.
+    RandomForest wrapped with isotonic probability calibration.
+
+    class_weight='balanced' compresses RF probabilities toward 0.5, so the
+    raw 0.5 decision boundary carries less information than it should.
+    CalibratedClassifierCV (isotonic) corrects this by learning a monotone
+    mapping from raw scores to proper probabilities using 5-fold CV on the
+    training data.  No separate hold-out window is needed, so the full
+    training set is used for both fitting and calibration.
+
+    Exposes the same interface as a fitted sklearn classifier
+    (predict, predict_proba, feature_importances_).
     """
-    def __init__(self, model, threshold):
-        self._model = model
-        self.threshold = threshold
-        self.feature_importances_ = model.feature_importances_
-        self.classes_ = model.classes_
+    def __init__(self, base_model, calibrated_model):
+        self._base = base_model
+        self._cal = calibrated_model
+        self.feature_importances_ = base_model.feature_importances_
+        self.classes_ = base_model.classes_
 
     def predict(self, X):
-        proba = self._model.predict_proba(X)[:, 1]
-        return (proba >= self.threshold).astype(int)
+        return self._cal.predict(X)
 
     def predict_proba(self, X):
-        return self._model.predict_proba(X)
+        return self._cal.predict_proba(X)
 
 
-def train_random_forest(X_train, y_train, params=None, calibrate=True):
+def train_random_forest(X_train, y_train, params=None):
     """
-    Train a Random Forest classifier with threshold calibration.
+    Train a Random Forest classifier with isotonic probability calibration.
 
-    RF with class_weight='balanced' produces systematically compressed
-    probabilities — the raw 0.5 threshold is never crossed even when the
-    model has genuine signal (at 0.40 threshold accuracy can be ~58%).
-    We fix this by using the final 20% of training data (chronologically)
-    to find the threshold that maximises accuracy, then bake it into the
-    returned model. No test data is used so there is no data leakage.
+    Uses CalibratedClassifierCV (method='isotonic', cv=5) on the full
+    training set to produce well-calibrated probabilities.  This replaces
+    the previous ad-hoc threshold search, which was non-stationary across
+    walk-forward folds and caused accuracy to drop below 50% in some periods.
 
     Args:
         X_train (pd.DataFrame): Training features
         y_train (pd.Series): Training target
         params (dict): Model hyperparameters (default from config)
-        calibrate (bool): Whether to calibrate the decision threshold
 
     Returns:
-        _ThresholdRF or RandomForestClassifier: Trained model
+        _CalibratedRF: Trained and calibrated model
     """
     if params is None:
         params = config.RF_PARAMS
@@ -122,39 +127,20 @@ def train_random_forest(X_train, y_train, params=None, calibrate=True):
         print("=" * 60)
         print(f"Parameters: {params}")
 
-    model = RandomForestClassifier(**params)
+    base_model = RandomForestClassifier(**params)
 
-    if calibrate and len(X_train) >= 120:
-        # Time-ordered split: train on first 80%, calibrate threshold on last 20%
-        cal_split = int(len(X_train) * 0.8)
-        X_fit = X_train.iloc[:cal_split]
-        X_cal = X_train.iloc[cal_split:]
-        y_fit = y_train.iloc[:cal_split]
-        y_cal = y_train.iloc[cal_split:]
+    # Use 5-fold CV calibration when we have enough data; prefit otherwise
+    n_splits = 5 if len(X_train) >= 150 else 3
+    calibrated = CalibratedClassifierCV(base_model, method='isotonic', cv=n_splits)
+    calibrated.fit(X_train, y_train)
 
-        model.fit(X_fit, y_fit)
-
-        # Search for threshold that maximises accuracy on calibration set
-        proba_cal = model.predict_proba(X_cal)[:, 1]
-        best_thresh, best_acc = 0.5, 0.0
-        for thresh in np.arange(0.30, 0.71, 0.01):
-            pred = (proba_cal >= thresh).astype(int)
-            acc = accuracy_score(y_cal, pred)
-            if acc > best_acc:
-                best_acc = acc
-                best_thresh = float(thresh)
-
-        if config.VERBOSE:
-            print(f"✅ Calibrated threshold: {best_thresh:.2f} (val acc={best_acc:.4f})")
-
-        return _ThresholdRF(model, best_thresh)
-
-    model.fit(X_train, y_train)
+    # Also fit base model so we can expose feature_importances_
+    base_model.fit(X_train, y_train)
 
     if config.VERBOSE:
-        print("✅ Model training complete!")
+        print("✅ Model training and probability calibration complete!")
 
-    return model
+    return _CalibratedRF(base_model, calibrated)
 
 
 def train_svm(X_train, y_train, params=None):

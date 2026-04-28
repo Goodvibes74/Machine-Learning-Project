@@ -242,144 +242,204 @@ def calculate_rsi(df, window=14):
 
 def calculate_macd(df):
     """
-    Calculate MACD (Moving Average Convergence Divergence)
+    Calculate MACD (Moving Average Convergence Divergence), normalised by Close.
 
     MACD is a trend-following momentum indicator:
     - MACD line = 12-day EWM - 26-day EWM
     - Signal line = 9-day EWM of MACD
     - Histogram = MACD - Signal
 
-    IMPROVEMENT: Uses shift(1) on Close to ensure no look-ahead bias.
+    All three values are divided by the current Close price so they are
+    scale-independent (expressed as % of price).  This prevents the model
+    from learning price level rather than price direction.
 
     Args:
         df (pd.DataFrame): Stock data with 'Close' column
 
     Returns:
-        pd.DataFrame: Data with 'MACD' and 'MACD_signal' columns added
+        pd.DataFrame: Data with 'MACD', 'MACD_signal', 'MACD_histogram' columns added
     """
     df = df.copy()
 
-    # Use today's close — valid since we know it when predicting tomorrow
     ema_12 = df['Close'].ewm(span=12, adjust=False).mean()
     ema_26 = df['Close'].ewm(span=26, adjust=False).mean()
-    df['MACD'] = ema_12 - ema_26
-    df['MACD_signal'] = df['MACD'].ewm(span=9, adjust=False).mean()
-    # Histogram crosses zero when momentum flips — the primary trading signal
+    raw_macd = ema_12 - ema_26
+    raw_signal = raw_macd.ewm(span=9, adjust=False).mean()
+
+    # Normalise by Close so values are comparable across price levels
+    df['MACD'] = raw_macd / df['Close'] * 100
+    df['MACD_signal'] = raw_signal / df['Close'] * 100
     df['MACD_histogram'] = df['MACD'] - df['MACD_signal']
 
     if config.VERBOSE:
-        print("✅ Added 'MACD', 'MACD_signal', 'MACD_histogram' features")
+        print("✅ Added 'MACD', 'MACD_signal', 'MACD_histogram' features (% of price)")
 
     return df
 
 
 def calculate_bollinger_bands(df, window=20):
     """
-    Calculate Bollinger Bands
+    Calculate Bollinger Bands (normalised, no absolute price columns).
 
-    Bollinger Bands are volatility bands placed above and below a moving average.
-    - Upper Band = SMA + 2*Standard Deviation
-    - Lower Band = SMA - 2*Standard Deviation
-    - Band Width = (Upper - Lower) / SMA
-    - Band Position = (Close - Lower) / (Upper - Lower)
+    BB_width   = (upper - lower) / SMA  — band width as fraction of price
+    BB_position = (Close - lower) / (upper - lower) — 0=at lower, 1=at upper
 
-    IMPROVEMENT: Uses shift(1) on Close to ensure no look-ahead bias.
+    BB_upper and BB_lower are NOT added as features because they are absolute
+    price values (scale-dependent) that would cause the model to learn price
+    level rather than price direction.
 
     Args:
         df (pd.DataFrame): Stock data with 'Close' column
         window (int): Window for SMA and std (default: 20)
 
     Returns:
-        pd.DataFrame: Data with 'BB_upper', 'BB_lower', 'BB_width', 'BB_position' columns
+        pd.DataFrame: Data with 'BB_width' and 'BB_position' columns added
     """
     df = df.copy()
 
-    # Use today's close — consistent with the BB_position which also uses today's close
     sma = df['Close'].rolling(window=window).mean()
     std = df['Close'].rolling(window=window).std()
+    bb_upper = sma + 2 * std
+    bb_lower = sma - 2 * std
 
-    df['BB_upper'] = sma + 2 * std
-    df['BB_lower'] = sma - 2 * std
-    df['BB_width'] = (df['BB_upper'] - df['BB_lower']) / sma
-    df['BB_position'] = (df['Close'] - df['BB_lower']) / (df['BB_upper'] - df['BB_lower'])
+    df['BB_width'] = (bb_upper - bb_lower) / sma
+    df['BB_position'] = (df['Close'] - bb_lower) / (bb_upper - bb_lower)
 
     if config.VERBOSE:
-        print(f"✅ Added Bollinger Bands features (window={window})")
+        print(f"✅ Added 'BB_width', 'BB_position' features (window={window})")
 
     return df
 
 
 def calculate_obv(df):
     """
-    Calculate On-Balance Volume (OBV)
+    Calculate On-Balance Volume (OBV) change only.
 
-    OBV is a cumulative indicator that adds volume on up days and
-    subtracts volume on down days. It measures buying/selling pressure.
-
-    IMPROVEMENT: Uses shift(1) on Close to ensure no look-ahead bias.
+    OBV accumulates volume signed by price direction.  The raw cumulative OBV
+    is monotonically increasing over time (scale-dependent) so it is NOT added
+    as a feature.  Only OBV_change (percentage change) is kept — it captures
+    sudden volume pressure without the long-term drift.
 
     Args:
         df (pd.DataFrame): Stock data with 'Close' and 'Volume' columns
 
     Returns:
-        pd.DataFrame: Data with 'OBV' and 'OBV_change' columns added
+        pd.DataFrame: Data with 'OBV_change' column added
     """
     df = df.copy()
 
-    # Use shifted close to prevent look-ahead bias
     close_shifted = df['Close'].shift(1)
-
-    # Calculate direction: 1 if close > close_shifted, -1 if close < close_shifted, 0 otherwise
     direction = (df['Close'] > close_shifted).astype(int) - (df['Close'] < close_shifted).astype(int)
-
-    # Calculate OBV (cumulative sum of volume * direction)
-    df['OBV'] = (direction * df['Volume']).cumsum()
-
-    # Calculate OBV change (percentage)
-    df['OBV_change'] = df['OBV'].pct_change()
+    obv = (direction * df['Volume']).cumsum()
+    df['OBV_change'] = obv.pct_change()
 
     if config.VERBOSE:
-        print("✅ Added 'OBV' and 'OBV_change' features")
+        print("✅ Added 'OBV_change' feature")
 
     return df
 
 
 def calculate_atr(df, window=14):
     """
-    Calculate Average True Range (ATR)
+    Calculate Average True Range (ATR), normalised by Close price.
 
-    ATR measures market volatility. It's the average of the True Range
-    over a specified period.
-    True Range = max(High - Low, |High - Previous Close|, |Low - Previous Close|)
+    ATR measures volatility as the average True Range over N days.
+    Dividing by Close gives ATR as a percentage of price, making it
+    scale-independent across different price levels and time periods.
 
-    IMPROVEMENT: Uses shift(1) on Close to ensure no look-ahead bias.
+    True Range = max(High - Low, |High - Prev Close|, |Low - Prev Close|)
 
     Args:
         df (pd.DataFrame): Stock data with 'High', 'Low', 'Close' columns
         window (int): ATR period (default: 14)
 
     Returns:
-        pd.DataFrame: Data with 'ATR_14' column added
+        pd.DataFrame: Data with 'ATR_14' column added (% of Close price)
     """
     df = df.copy()
 
-    # Use shifted close for True Range calculation
     prev_close = df['Close'].shift(1)
-
-    # Calculate True Range components
     high_low = df['High'] - df['Low']
     high_prev = (df['High'] - prev_close).abs()
     low_prev = (df['Low'] - prev_close).abs()
 
-    # True Range is the max of the three
     true_range = pd.concat([high_low, high_prev, low_prev], axis=1).max(axis=1)
+    raw_atr = true_range.rolling(window=window).mean()
 
-    # Calculate ATR as rolling mean of True Range
-    df['ATR_14'] = true_range.rolling(window=window).mean()
+    # Normalise by Close so it is scale-independent (expressed as % of price)
+    df['ATR_14'] = raw_atr / df['Close'] * 100
 
     if config.VERBOSE:
-        print(f"✅ Added 'ATR_14' feature (window={window})")
+        print(f"✅ Added 'ATR_14' feature (% of price, window={window})")
 
+    return df
+
+
+def calculate_lag_features(df, lags=(1, 2, 3)):
+    """
+    Add lagged return features.
+
+    Yesterday's and the day-before-yesterday's returns capture short-term
+    momentum and mean-reversion signals that are not already present in the
+    rolling Momentum columns.
+
+    Args:
+        df (pd.DataFrame): Data with 'Returns' column
+        lags (tuple): Number of days to lag
+
+    Returns:
+        pd.DataFrame: Data with 'Returns_lag1', 'Returns_lag2', ... columns
+    """
+    df = df.copy()
+    for lag in lags:
+        df[f'Returns_lag{lag}'] = df['Returns'].shift(lag)
+        if config.VERBOSE:
+            print(f"✅ Added 'Returns_lag{lag}' feature")
+    return df
+
+
+def calculate_volume_ratio(df, window=20):
+    """
+    Add Volume_Ratio: current volume relative to its N-day rolling average.
+
+    A ratio > 1 means unusually high trading activity (potential breakout or
+    news event).  Normalising by the rolling average removes the absolute
+    scale of volume, making the feature comparable across time.
+
+    Args:
+        df (pd.DataFrame): Data with 'Volume' column
+        window (int): Rolling window for average volume (default: 20)
+
+    Returns:
+        pd.DataFrame: Data with 'Volume_Ratio' column added
+    """
+    df = df.copy()
+    avg_vol = df['Volume'].rolling(window=window).mean()
+    df['Volume_Ratio'] = df['Volume'] / avg_vol
+    if config.VERBOSE:
+        print(f"✅ Added 'Volume_Ratio' feature (window={window})")
+    return df
+
+
+def calculate_day_of_week(df):
+    """
+    Add DayOfWeek feature (0=Monday … 4=Friday).
+
+    Day-of-week effects are well documented in equity markets (e.g. the
+    Monday effect, pre-weekend drift).  This encodes the calendar pattern
+    as a simple integer feature.
+
+    Args:
+        df (pd.DataFrame): Data with 'Date' column
+
+    Returns:
+        pd.DataFrame: Data with 'DayOfWeek' column added
+    """
+    df = df.copy()
+    if 'Date' in df.columns:
+        df['DayOfWeek'] = pd.to_datetime(df['Date']).dt.dayofweek
+        if config.VERBOSE:
+            print("✅ Added 'DayOfWeek' feature")
     return df
 
 
@@ -560,16 +620,21 @@ def engineer_all_features(df):
     df = calculate_returns(df)
     df = add_rolling_averages(df)          # SMA_5, SMA_10, SMA_20
     df = calculate_volatility(df)
-    df = calculate_momentum(df)            # Momentum_3, Momentum_5, Momentum_10, Momentum_20
+    df = calculate_momentum(df)            # Momentum_3/5/10/20
     df = calculate_volume_change(df)
     df = calculate_hl_spread(df)
 
-    # Technical indicators (use today's close — no look-ahead since target is tomorrow)
+    # Lagged returns and volume features
+    df = calculate_lag_features(df)        # Returns_lag1/2/3
+    df = calculate_volume_ratio(df)        # Volume_Ratio (vs 20-day avg)
+    df = calculate_day_of_week(df)         # DayOfWeek (0=Mon … 4=Fri)
+
+    # Technical indicators (normalised — no look-ahead since target is tomorrow)
     df = calculate_rsi(df)
-    df = calculate_macd(df)                # MACD, MACD_signal, MACD_histogram
-    df = calculate_bollinger_bands(df)
-    df = calculate_obv(df)
-    df = calculate_atr(df)
+    df = calculate_macd(df)                # MACD/signal/histogram (% of price)
+    df = calculate_bollinger_bands(df)     # BB_width, BB_position (no abs. price cols)
+    df = calculate_obv(df)                 # OBV_change only (not raw cumulative OBV)
+    df = calculate_atr(df)                 # ATR_14 (% of price)
 
     # Normalized trend signals (requires SMAs to be computed first)
     df = calculate_price_sma_ratios(df)   # Price_SMA_N_ratio, SMA_5_20_ratio
