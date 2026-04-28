@@ -479,6 +479,47 @@ def calculate_price_sma_ratios(df, windows=None):
     return df
 
 
+def merge_nlp_sentiment(df, sentiment_df):
+    """
+    Merge daily NLP sentiment into the OHLCV DataFrame with a 1-day lag.
+
+    The lag prevents look-ahead bias: today's published news is shifted
+    forward by one day so it predicts *tomorrow's* price, not today's.
+    Trading days with no matching news receive NLP_Sentiment = 0.0
+    (neutral) and News_Volume = 0 to keep the dataset shape intact.
+
+    Args:
+        df            (pd.DataFrame): Stock data with 'Date' column
+        sentiment_df  (pd.DataFrame): Daily sentiment with columns
+                                      ['Date', 'NLP_Sentiment', 'News_Volume']
+
+    Returns:
+        pd.DataFrame: df extended with 'NLP_Sentiment' and 'News_Volume'
+    """
+    df           = df.copy()
+    sentiment_df = sentiment_df[['Date', 'NLP_Sentiment', 'News_Volume']].copy()
+
+    df['Date']           = pd.to_datetime(df['Date'])
+    sentiment_df['Date'] = pd.to_datetime(sentiment_df['Date'])
+
+    # 1-day lag: shift each sentiment row forward by one calendar day so that
+    # the news published on day T is available as a feature on day T+1.
+    sentiment_df = sentiment_df.sort_values('Date').reset_index(drop=True)
+    sentiment_df['Date'] = sentiment_df['Date'] + pd.Timedelta(days=1)
+
+    df = df.merge(sentiment_df, on='Date', how='left')
+
+    # Fill trading days that have no lagged news as neutral
+    df['NLP_Sentiment'] = df['NLP_Sentiment'].fillna(0.0)
+    df['News_Volume']   = df['News_Volume'].fillna(0).astype(int)
+
+    if config.VERBOSE:
+        no_news = (df['News_Volume'] == 0).sum()
+        print(f"✅ Merged NLP sentiment (1-day lag applied; {no_news} days filled neutral)")
+
+    return df
+
+
 def create_sentiment_proxy(df, window=None): #responsible for creating a simple sentiment proxy based on price momentum. This is a placeholder until we implement real NLP sentiment analysis.
     """
     Create a price-based sentiment proxy
@@ -581,33 +622,39 @@ def create_target_variable(df, horizon=None): # responsible for creating the tar
     return df
 
 
-def engineer_all_features(df):
+def engineer_all_features(df, sentiment_df=None):
     """
-    Apply all feature engineering steps
+    Apply all feature engineering steps.
 
-    This is the main function that creates ALL features in the correct order.
-    Order matters because some features depend on others!
+    When sentiment_df is provided (output of
+    src.sentiment_analysis.get_sentiment_for_ticker), real NLP features
+    (NLP_Sentiment, News_Volume) replace the price-based proxy.
+    When it is None the price-based proxy is used as a fallback.
 
     Pipeline:
-    1. Calculate returns (needed for volatility)
-    2. Add rolling averages
-    3. Calculate volatility (needs returns)
-    4. Calculate momentum
-    5. Calculate volume change
-    6. Calculate HL spread
-    7. Create sentiment proxy
-    8. Smooth sentiment (needs sentiment proxy)
-    9. Create target variable
+    1.  Calculate returns (needed for volatility)
+    2.  Add rolling averages
+    3.  Calculate volatility (needs returns)
+    4.  Calculate momentum
+    5.  Calculate volume change
+    6.  Calculate HL spread
+    7.  Lagged returns / volume ratio / day-of-week
+    8.  Technical indicators (RSI, MACD, Bollinger, OBV, ATR)
+    9.  Price/SMA ratio signals
+    10. Sentiment — NLP merge (if sentiment_df provided) or price proxy
+    11. Create target variable
 
     Args:
-        df (pd.DataFrame): Preprocessed stock data
+        df           (pd.DataFrame):       Preprocessed stock data
+        sentiment_df (pd.DataFrame|None):  Daily NLP sentiment
+                                           ['Date', 'NLP_Sentiment', 'News_Volume']
 
     Returns:
         pd.DataFrame: Data with all features added
 
     Example:
         >>> processed_data = preprocess_stock_data(raw_data)
-        >>> feature_data = engineer_all_features(processed_data)
+        >>> feature_data = engineer_all_features(processed_data, sentiment_df)
     """
     if config.VERBOSE:
         print("\n" + "=" * 60)
@@ -639,9 +686,13 @@ def engineer_all_features(df):
     # Normalized trend signals (requires SMAs to be computed first)
     df = calculate_price_sma_ratios(df)   # Price_SMA_N_ratio, SMA_5_20_ratio
 
-    # Sentiment proxy
-    df = create_sentiment_proxy(df)
-    df = smooth_sentiment(df)
+    # Sentiment — use real NLP scores when available, proxy otherwise
+    if sentiment_df is not None:
+        df = merge_nlp_sentiment(df, sentiment_df)
+    else:
+        df = create_sentiment_proxy(df)
+        df = smooth_sentiment(df)
+
     df = create_target_variable(df)
 
     if config.VERBOSE:

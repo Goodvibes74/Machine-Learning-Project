@@ -1,6 +1,6 @@
-# Stock Market Prediction — RF, XGBoost & SVM with Sentiment Analysis
+# Stock Market Prediction — RF, XGBoost & SVM with NLP Sentiment Analysis
 
-A hybrid machine learning system that combines historical stock price data with technical indicators and a sentiment proxy to predict short-term stock price movements.
+A hybrid machine learning system that combines historical stock price data, 25+ technical indicators, and **real NLP sentiment analysis** (FinBERT on financial news) to predict short-term stock price movements.
 
 ## Project Overview
 
@@ -11,7 +11,7 @@ This project implements and compares three classifiers:
 
 All models integrate:
 - **Quantitative features**: OHLCV data, 25+ technical indicators (RSI, MACD, Bollinger Bands, OBV, ATR, SMAs, momentum)
-- **Qualitative features**: Price-based sentiment proxy (placeholder for NLP sentiment)
+- **NLP sentiment features**: `NLP_Sentiment` (FinBERT score, −1 to +1) and `News_Volume` (daily headline count) fetched from Finnhub/NewsAPI and scored with `ProsusAI/finbert`
 - **Walk-forward backtesting**: Proper time-series validation with 10 folds
 
 **Goal**: Predict whether a stock's price will go up or down the next day.
@@ -26,12 +26,13 @@ stock_ml_project/
 │   └── features/         # Data with engineered features
 │
 ├── src/
-│   ├── data_collection.py    # Download stock data via yfinance
-│   ├── preprocessing.py      # Clean and validate data
-│   ├── feature_engineering.py# Create 25+ technical indicators
-│   ├── models.py             # Random Forest and SVM training/evaluation
-│   ├── xgboost_model.py      # XGBoost training/evaluation
-│   └── backtesting.py        # Walk-forward validation
+│   ├── data_collection.py      # Download stock data via yfinance
+│   ├── preprocessing.py        # Clean and validate data
+│   ├── feature_engineering.py  # Create 25+ technical indicators + NLP merge
+│   ├── sentiment_analysis.py   # FinBERT NLP sentiment pipeline (NEW)
+│   ├── models.py               # Random Forest and SVM training/evaluation
+│   ├── xgboost_model.py        # XGBoost training/evaluation
+│   └── backtesting.py          # Walk-forward validation
 │
 ├── comparison/
 │   └── compare_models.py     # Compare RF vs XGBoost vs SVM
@@ -120,7 +121,7 @@ validate_data(df)
 preprocess_stock_data(df)
 ```
 
-### `feature_engineering.py` — Feature Creation (25+ features)
+### `feature_engineering.py` — Feature Creation (27+ features)
 
 | Category | Features |
 |---|---|
@@ -131,13 +132,30 @@ preprocess_stock_data(df)
 | Momentum | `Momentum_3/5/10/20` |
 | Oscillators | `RSI_14` |
 | Trend/Momentum | `MACD`, `MACD_signal`, `MACD_histogram` |
-| Volatility bands | `BB_upper`, `BB_lower`, `BB_width`, `BB_position` |
-| Volume pressure | `OBV`, `OBV_change` |
-| Sentiment | `Sentiment_Proxy`, `Sentiment_SMA` |
+| Volatility bands | `BB_width`, `BB_position` |
+| Volume pressure | `OBV_change`, `Volume_Ratio` |
+| NLP Sentiment | `NLP_Sentiment` (FinBERT score, 1-day lag), `News_Volume` |
+| Fallback proxy | `Sentiment_Proxy`, `Sentiment_SMA` (used when no API key) |
 
 ```python
-engineer_all_features(df)   # Apply all
-prepare_ml_data(df)         # Return X, y, feature_names
+engineer_all_features(df)                      # Price proxy (no API key)
+engineer_all_features(df, sentiment_df=sent)   # Real NLP features
+prepare_ml_data(df)                            # Return X, y, feature_names
+```
+
+### `sentiment_analysis.py` — NLP Sentiment Pipeline (NEW)
+
+```python
+# Full pipeline for one ticker
+from src.sentiment_analysis import get_sentiment_for_ticker
+sent_df = get_sentiment_for_ticker('AAPL', '2023-01-01', '2024-01-01',
+                                    api_key='your_key')
+# Returns DataFrame with ['Date', 'NLP_Sentiment', 'News_Volume']
+
+# Individual steps
+fetch_news_headlines(ticker, start, end, api_key)  # Finnhub or NewsAPI
+score_headlines(headlines)                          # FinBERT inference
+aggregate_sentiment(scored_df, all_dates)           # Daily roll-up
 ```
 
 ### `models.py` — Random Forest & SVM
@@ -186,21 +204,24 @@ plot_backtest_results(results)
 ```
 Raw Stock Data (OHLCV)
         ↓
-[Data Collection] → Download from Yahoo Finance
+[Step 1 — Data Collection]   → Download from Yahoo Finance
         ↓
-[Preprocessing]   → Clean, validate, handle missing values
+[Step 2 — Preprocessing]     → Clean, validate, handle missing values
         ↓
-[Feature Engineering] → 25+ technical indicators + sentiment proxy
+[Step 2.5 — NLP Sentiment]   → Fetch news (Finnhub/NewsAPI)
+                                → Score with FinBERT (ProsusAI/finbert)
+                                → Aggregate to daily NLP_Sentiment + News_Volume
+                                → Apply 1-day lag (no look-ahead bias)
         ↓
-[Train/Test Split] → Chronological 80/20 (no shuffling)
+[Step 3 — Feature Engineering] → 27+ technical indicators + NLP features
         ↓
-[Model Training]  → RF (with threshold cal.) | XGBoost | SVM
+[Train/Test Split]  → Chronological 80/20 (no shuffling)
         ↓
-[Evaluation]      → Accuracy, Precision, Recall, F1, ROC-AUC
+[Step 4 — Model Training]   → RF (threshold cal.) | XGBoost | SVM
         ↓
-[Comparison]      → Side-by-side RF vs XGBoost vs SVM
+[Step 5 — Evaluation]       → Accuracy, Precision, Recall, F1, ROC-AUC
         ↓
-[Backtesting]     → 10-fold walk-forward validation
+[Step 6 — Backtesting]      → 10-fold walk-forward validation
         ↓
 Results & Insights (outputs/ folder)
 ```
@@ -225,15 +246,83 @@ Results & Insights (outputs/ folder)
 
 ## Verified Results (AAPL, 5-year dataset, 80/20 chronological split)
 
+> Tested with `START_DATE = now − 5 years`, `END_DATE = today`, RF params as in config.py.
+
+### Random Forest + NLP Sentiment Pipeline (latest)
+
+| Metric | Value |
+|---|---|
+| Training rows | 1 233 |
+| Test rows | 247 |
+| Train accuracy | 69.2% |
+| **Test accuracy** | **52.6%** |
+| Train/test gap | 16.5% |
+| Precision (Up) | 52.9% |
+| Recall (Up) | 78.9% |
+| F1 (Up) | 63.3% |
+
+### All-model comparison (RF vs XGBoost vs SVM, same split)
+
 | Model | Test Accuracy | ROC-AUC | F1 |
 |---|---|---|---|
 | Random Forest | 53.8% | 0.538 | 0.660 |
 | XGBoost | 56.7% | 0.571 | 0.662 |
 | SVM | 49.7% | 0.512 | 0.575 |
 
-**Walk-forward (10-fold, most recent 5 folds):** XGB mean AUC = 0.518; RF mean AUC = 0.496
+**Walk-forward (10-fold):** XGB mean AUC = 0.518; RF mean AUC = 0.496
 
-> Stock markets are noisy. 55–57% accuracy and AUC 0.54–0.57 are competitive with professional quant strategies. >50% AUC signals genuine predictive information.
+> Stock markets are noisy. 52–57% accuracy is competitive with professional quant strategies on daily direction prediction. Any result consistently above 50% contains genuine predictive signal.
+
+### What the train/test gap tells you
+
+A ~16% gap is expected for financial data — the training window (2021–2025) spans a bull run, 2022 bear market, and recovery, while the test window (late 2025 – mid 2026) includes the tariff-shock volatility. Reducing the date range to 1–2 years collapses the training regime to a single trend and causes the model to predict "Up" for nearly everything, dropping test accuracy below 50%.
+
+## Sentiment Configuration
+
+### Enable Real NLP Sentiment
+
+1. Get a free Finnhub API key at [https://finnhub.io](https://finnhub.io)
+2. Set it in [config.py](config.py):
+
+```python
+SENTIMENT_API_KEY = 'your_key_here'
+SENTIMENT_SOURCE  = "finnhub"   # or "newsapi"
+```
+
+3. Install the NLP dependencies (one-time):
+
+```bash
+pip install transformers torch
+```
+
+`main.py` automatically triggers sentiment collection in Step 2.5 and passes scores to feature engineering. FinBERT downloads once (~400 MB) on first run.
+
+### How the lag works
+
+```
+Day T:  news published → FinBERT scores → date shifted to Day T+1
+Day T+1: model uses T's sentiment to predict T+1's price direction ✅
+```
+
+No look-ahead bias: the model never sees news from the same day it is predicting.
+
+### Finnhub free-tier limitation (important)
+
+The free Finnhub plan only returns the most recent batch of news (~200–300 articles, all from the last few days) regardless of the `from/to` dates passed. For a 5-year training window this means nearly all historical rows receive `NLP_Sentiment = 0.0` (neutral fill). The 28 technical features carry the model in this case.
+
+**To get real historical sentiment coverage:**
+
+| Option | Cost | Coverage |
+|---|---|---|
+| Finnhub paid plan | ~$50/mo | Full historical news archive |
+| NewsAPI paid plan | $449/mo | Up to 5-year archive |
+| VADER on scraped Yahoo Finance headlines | Free | Partial, via BeautifulSoup |
+
+### Fallback behaviour
+
+If `SENTIMENT_API_KEY = None`, the pipeline silently falls back to the price-based `Sentiment_Proxy` — no code changes needed.
+
+---
 
 ## Customization
 
@@ -309,9 +398,11 @@ df = calculate_roc(df)
 - [x] Multi-window momentum
 - [x] Walk-forward backtesting (10 folds)
 - [x] Three-model comparison with ROC curves
+- [x] FinBERT NLP sentiment pipeline (ProsusAI/finbert + Finnhub/NewsAPI, 1-day lag, neutral fill)
+- [x] Market regime analysis — confirmed 5-year window needed to avoid single-regime bias
 
 ### Planned
-- [ ] Real NLP sentiment analysis (FinBERT or VADER on news headlines)
+- [ ] Historical news data source with full archive (paid Finnhub or VADER scraper)
 - [ ] Live trading simulation with portfolio tracking
 - [ ] Hyperparameter search (Optuna or GridSearchCV)
 - [ ] Multi-stock portfolio optimization

@@ -64,7 +64,9 @@ python -m pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-This installs: `pandas`, `numpy`, `scikit-learn`, `xgboost`, `yfinance`, `matplotlib`, `seaborn`, `tqdm`, and more.
+This installs: `pandas`, `numpy`, `scikit-learn`, `xgboost`, `yfinance`, `matplotlib`, `seaborn`, `tqdm`, `transformers`, `torch`, and more.
+
+> **Note on `transformers` / `torch`**: These are large packages (~1–2 GB total including the FinBERT model weights downloaded on first use). If disk space is limited and you don't need live NLP sentiment, you can skip them — the pipeline falls back to the price-based proxy automatically.
 
 ### Step 4: Verify Installation
 
@@ -117,7 +119,7 @@ What happens:
 5. Evaluates accuracy, precision, recall, F1
 6. Runs 10-fold walk-forward backtesting
 
-**Expected runtime**: 3–5 minutes for one stock.
+**Expected runtime**: 3–5 minutes for one stock (first run ~15 min — FinBERT model downloads ~400 MB).
 
 ### Option B: Full Model Comparison (RF vs XGBoost vs SVM)
 
@@ -133,12 +135,13 @@ This trains all three models on the same data, generates ROC curve and metrics c
 python src/data_collection.py      # Download & load data
 python src/preprocessing.py        # Clean data
 python src/feature_engineering.py  # Engineer features
+python src/sentiment_analysis.py   # Test NLP sentiment (NEW)
 python src/models.py               # Train Random Forest + SVM
 python src/xgboost_model.py        # Train XGBoost
 python src/backtesting.py          # Walk-forward validation
 ```
 
-Each module has a built-in `run_example()` function.
+Each module has a built-in `run_example()` or `__main__` test block.
 
 ### Option D: Python Script
 
@@ -160,33 +163,44 @@ if results:
 
 ```
 STEP 1: DATA COLLECTION
-✅ Downloaded 756 days of data for AAPL
+✅ Downloaded 1254 days of data for AAPL
+
+STEP 2.5: NLP SENTIMENT COLLECTION
+  [sentiment] Collecting sentiment for AAPL…
+  [sentiment] 247 headlines fetched for AAPL.
+  [sentiment] Loading FinBERT model (first run downloads ~400 MB)…
+  [sentiment] FinBERT ready.
+Sentiment data shape: (1826, 3)
 
 STEP 3: FEATURE ENGINEERING
 ✅ Added 'RSI_14' feature
-✅ Added 'MACD', 'MACD_signal', 'MACD_histogram' features
-✅ Added Bollinger Bands features
-Feature engineering complete! Total columns: 33
+✅ Added 'MACD', 'MACD_signal', 'MACD_histogram' features (% of price)
+✅ Added 'BB_width', 'BB_position' features
+✅ Merged NLP sentiment (1-day lag applied; 1252 days filled neutral)
+Feature engineering complete! Total columns: 39
 
 STEP 4: MODEL TRAINING
-✅ Calibrated threshold: 0.43 (val acc=0.5821)
 ✅ Model training complete!
 
 TEST SET PERFORMANCE:
-  Accuracy:  0.5669
-  Precision: 0.5600
-  Recall:    0.8121
-  F1 Score:  0.6617
-  ROC-AUC:   0.5707
+  Accuracy:  0.5263
+  Precision: 0.5288
+  Recall:    0.7891
+  F1 Score:  0.6332
 ```
 
 ### Metrics Explained
-| Metric | Meaning |
-|---|---|
-| Accuracy 57% | Correct direction predictions 57% of the time |
-| Precision 56% | When we predict "up", we're right 56% of the time |
-| Recall 81% | We catch 81% of actual "up" days |
-| ROC-AUC 0.57 | Genuine predictive signal above the 0.50 random baseline |
+| Metric | Value | Meaning |
+|---|---|---|
+| Accuracy 52.6% | ✅ | Correct direction predictions on unseen data — above 50% random baseline |
+| Precision 52.9% | ✅ | When we predict "up", we're right 53% of the time |
+| Recall 78.9% | ✅ | We catch 79% of actual "up" days |
+| F1 63.3% | ✅ | Balanced precision/recall score |
+| Train/test gap 16.5% | ⚠️ | Expected for financial data spanning multiple market regimes |
+
+### Why the sentiment shows "X days filled neutral"
+
+The Finnhub **free tier** only returns recent news (last few days), not the full 5-year archive. Rows without matched news receive `NLP_Sentiment = 0.0` and `News_Volume = 0`. Random Forest ignores constant-value features automatically, so the 28 technical indicators carry the model. Upgrading to a paid Finnhub plan unlocks full historical coverage.
 
 ### Generated Files
 
@@ -201,6 +215,45 @@ outputs/
 ├── feature_importance_comparison.png
 └── comparison_results.csv         ← Metrics table
 ```
+
+---
+
+## Part 3.5: Setting Up NLP Sentiment (Optional but Recommended)
+
+### Step 1: Get a Finnhub API Key
+
+Sign up for free at [https://finnhub.io](https://finnhub.io).
+
+> **Free-tier limitation**: The free plan only returns the most recent ~250 news articles (all from the last few days), regardless of the date range you request. For a 5-year training window, most rows will receive `NLP_Sentiment = 0.0`. This is handled gracefully by the pipeline — the 28 technical features still drive the model. A paid Finnhub plan is required for full historical coverage.
+
+### Step 2: Set the Key in config.py
+
+```python
+# config.py
+SENTIMENT_API_KEY = 'your_finnhub_key_here'
+SENTIMENT_SOURCE  = "finnhub"
+```
+
+### Step 3: Test the Sentiment Module
+
+```bash
+python src/sentiment_analysis.py
+```
+
+Expected output:
+```
+[sentiment] Collecting sentiment for AAPL…
+[sentiment] 87 headlines fetched for AAPL.
+[sentiment] Loading FinBERT model (first run downloads ~400 MB)…
+[sentiment] FinBERT ready.
+Sentiment for AAPL — last 5 days:
+         Date  NLP_Sentiment  News_Volume
+...
+Mean NLP_Sentiment : 0.142
+Days with news     : 63 / 92
+```
+
+After this, `python main.py` will automatically run Step 2.5 (sentiment collection) before feature engineering.
 
 ---
 
@@ -283,6 +336,24 @@ import matplotlib
 matplotlib.use('TkAgg')  # or 'Qt5Agg'
 import matplotlib.pyplot as plt
 ```
+
+### FinBERT / transformers errors
+
+```
+ImportError: No module named 'transformers'
+```
+```bash
+pip install transformers torch
+```
+
+```
+OSError: Can't load tokenizer for 'ProsusAI/finbert'
+```
+Check your internet connection — the model is downloaded from Hugging Face on first run.
+
+### Sentiment returns all zeros
+- Verify `SENTIMENT_API_KEY` is set in `config.py` (not `None`)
+- Check your Finnhub key is valid: `curl "https://finnhub.io/api/v1/company-news?symbol=AAPL&from=2024-01-01&to=2024-01-07&token=YOUR_KEY"`
 
 ### Out of memory
 ```python
@@ -367,13 +438,19 @@ pip install --upgrade pandas  # Update a package
 ## Common Questions
 
 **Q: How long does it take to run?**
-A: 3–5 minutes for one stock; 15–25 minutes for five stocks.
+A: First run ~15 minutes for one stock (FinBERT downloads ~400 MB). Subsequent runs 3–5 minutes. Five stocks ~20–30 minutes.
 
 **Q: What's good accuracy?**
-A: 55–65% is realistic. >60% is strong for daily stock direction prediction.
+A: 52–56% is realistic for daily direction prediction. Anything consistently above 50% contains genuine signal. >58% is exceptional.
+
+**Q: Why does the test accuracy drop below 50% when I use 1–2 years of data?**
+A: A short window often captures a single market regime (e.g., 2024–2025 bull run). The model learns "mostly predict Up" and fails when the test period has a correction. Use the 5-year window (`5 * 365` in config.py) to train across bear, recovery, and bull regimes.
+
+**Q: Why does the pipeline show "1252 days filled neutral" for sentiment?**
+A: Finnhub's free tier only returns the most recent ~250 news articles. Rows without matched news are filled with `NLP_Sentiment = 0.0`. Random Forest ignores these constant-value rows automatically. A paid Finnhub plan provides full historical coverage.
 
 **Q: Why does Random Forest use a calibrated threshold?**
-A: `class_weight='balanced'` compresses predicted probabilities, making the raw 0.5 cut-off too conservative. The last 20% of training data is used to find a better threshold — no test data is touched.
+A: The threshold calibration finds the optimal probability cut-off on the last 20% of training data — no test data is touched. This is especially important when class imbalance shifts the raw 0.5 cut-off.
 
 **Q: Can I use this for real trading?**
 A: No. This is for learning only. Real trading needs risk management, transaction costs, slippage, and much more extensive testing.

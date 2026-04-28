@@ -22,7 +22,7 @@ ipython
 python-dotenv
 tqdm
 
-# Sentiment Analysis (future NLP integration)
+# Sentiment Analysis — NLP
 vaderSentiment
-# transformers  # Uncomment when adding BERT-based sentiment
-# torch         # Uncomment when adding BERT-based sentiment
+transformers>=4.0.0   # FinBERT (ProsusAI/finbert)
+torch>=1.9.0          # PyTorch backend for transformers

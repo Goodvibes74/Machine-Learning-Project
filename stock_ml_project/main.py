@@ -22,6 +22,7 @@ from src.data_collection import (
 )
 from src.preprocessing import preprocess_stock_data
 from src.feature_engineering import engineer_all_features, prepare_ml_data
+from src.sentiment_analysis import get_sentiment_for_ticker
 from src.models import train_and_evaluate_pipeline, compare_baseline
 from src.backtesting import walk_forward_validation, compare_strategies
 
@@ -95,13 +96,35 @@ def run_complete_pipeline(ticker, start_date=None, end_date=None):
     print(f"Processed data shape: {processed_data.shape}")
 
     # ========================================================================
+    # STEP 2.5: NLP SENTIMENT COLLECTION
+    # ========================================================================
+    print("\n" + "💬 " * 30)
+    print("STEP 2.5: NLP SENTIMENT COLLECTION")
+    print("💬 " * 30)
+
+    sentiment_df = None
+    if config.SENTIMENT_API_KEY:
+        sentiment_df = get_sentiment_for_ticker(
+            ticker,
+            start_date,
+            end_date,
+            api_key=config.SENTIMENT_API_KEY,
+            source=config.SENTIMENT_SOURCE,
+        )
+        print(f"Sentiment data shape: {sentiment_df.shape}")
+        print(f"Date range: {sentiment_df['Date'].min()} → {sentiment_df['Date'].max()}")
+    else:
+        print("SENTIMENT_API_KEY not set — using price-based sentiment proxy.")
+        print("To enable real NLP sentiment, set SENTIMENT_API_KEY in config.py.")
+
+    # ========================================================================
     # STEP 3: FEATURE ENGINEERING
     # ========================================================================
     print("\n" + "🟡 " * 30)
     print("STEP 3: FEATURE ENGINEERING")
     print("🟡 " * 30)
 
-    feature_data = engineer_all_features(processed_data)
+    feature_data = engineer_all_features(processed_data, sentiment_df=sentiment_df)
 
     # Save feature data
     feature_path = config.get_data_path(ticker, 'features')

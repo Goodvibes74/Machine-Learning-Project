@@ -34,7 +34,8 @@ TICKERS = [
 ]
 
 # Date range for historical data
-# Default: Last 5 years of data — more data → better generalisation for financial ML
+# 5 years spans multiple market regimes (bear 2022, recovery 2023, bull 2024)
+# which prevents the model from learning a single-regime bias.
 END_DATE = datetime.now().strftime('%Y-%m-%d')
 START_DATE = (datetime.now() - timedelta(days=5 * 365)).strftime('%Y-%m-%d')
 
@@ -63,14 +64,15 @@ PREDICTION_HORIZON = 1  # Next day prediction (binary: up/down)
 TEST_SIZE = 0.2  # 20% of data for testing
 
 # Random Forest hyperparameters
+# Tuned for ~1000+ training rows (5-year window).
+# Deep enough to capture non-linear patterns but shallow enough to avoid
+# memorising noise from the training set.
 RF_PARAMS = {
     'n_estimators': 300,       # More trees -> lower variance
     'max_depth': 4,            # Shallow trees for noisy financial data
     'min_samples_split': 30,   # Forces generalisation — prevents tiny splits
     'min_samples_leaf': 15,    # Large leaves -> smoother decision boundaries
     'max_features': 'sqrt',    # Classic RF: sqrt(n_features) per split
-    # class_weight omitted: 53/47 imbalance is mild; balanced weighting
-    # compresses probabilities and hurts threshold reliability.
     'random_state': 42,
     'n_jobs': 1,
 }
@@ -109,9 +111,17 @@ SVM_PARAMS = {
 # Number of splits for walk-forward validation
 N_SPLITS = 10  # 10-fold time series cross-validation
 
-# SENTIMENT ANALYSIS SETTINGS (Optional - for future use)
-# News API settings (you'll need to sign up for API key)
-NEWS_API_KEY = None  # Set this if you get a NewsAPI key
+# SENTIMENT ANALYSIS SETTINGS
+# Set SENTIMENT_API_KEY to enable real NLP sentiment via FinBERT.
+# Leave as None to fall back to the price-based sentiment proxy.
+#
+# Finnhub (recommended, free tier): https://finnhub.io
+# NewsAPI (alternative):            https://newsapi.org
+SENTIMENT_API_KEY = 'd7ofs41r01qsb7beppdgd7ofs41r01qsb7beppe0'
+SENTIMENT_SOURCE  = "finnhub"  # 'finnhub' or 'newsapi'
+
+# Legacy key kept for backward compatibility
+NEWS_API_KEY = None
 
 # Sentiment smoothing window
 SENTIMENT_WINDOW = 1  # 3-day moving average of sentiment
@@ -168,13 +178,20 @@ for window in ROLLING_WINDOWS:
     ENGINEERED_FEATURES.append(f'Price_SMA_{window}_ratio')
 ENGINEERED_FEATURES.append('SMA_5_20_ratio')  # golden-cross signal
 
-# Sentiment features
+# Sentiment features — NLP columns (active when SENTIMENT_API_KEY is set)
 SENTIMENT_FEATURES = [
-    'Sentiment_Proxy',  # Price-based sentiment proxy
-    'Sentiment_SMA',    # Smoothed sentiment
+    'NLP_Sentiment',  # FinBERT mean score per day (−1 bearish … +1 bullish)
+    'News_Volume',    # Daily headline count (news-activity / volatility signal)
+]
+
+# Price-based fallback used when no API key is configured
+SENTIMENT_PROXY_FEATURES = [
+    'Sentiment_Proxy',
+    'Sentiment_SMA',
 ]
 
 # All features that will be used for training
+# Note: prepare_ml_data() auto-discovers columns, so this list is informational.
 ALL_FEATURES = BASE_FEATURES + ENGINEERED_FEATURES + SENTIMENT_FEATURES
 
 
