@@ -585,26 +585,14 @@ def run_full_comparison(ticker='AAPL'):
     print(" " * 20 + "COMPARISON COMPLETE!")
     print("=" * 70)
 
-    # LEAKAGE FIX: Check for remaining leakage indicators
+    # Sanity check: very high AUC on held-out test data may indicate leakage
     rf_auc = rf_metrics.get('roc_auc', 0)
     xgb_auc = xgb_metrics.get('roc_auc', 0)
     max_auc = max(rf_auc if rf_auc is not None else 0, xgb_auc if xgb_auc is not None else 0)
-    
-    if max_auc > 0.85:
-        print("\n⚠️  WARNING: Leakage may still exist — review feature_engineering.py manually")
-        print(f"   Max ROC-AUC detected: {max_auc:.4f}")
 
-    # IMPROVEMENT: Check if accuracy dropped below baseline
-    baseline_rf = 0.5274  # Original baseline
-    baseline_xgb = 0.5000  # Original baseline
-    rf_acc = rf_metrics.get('accuracy', 0)
-    xgb_acc = xgb_metrics.get('accuracy', 0)
-    
-    if rf_acc < baseline_rf or xgb_acc < baseline_xgb:
-        print("\n⚠️  WARNING: Accuracy dropped below baseline!")
-        print(f"   RF: {rf_acc:.4f} (baseline: {baseline_rf:.4f})")
-        print(f"   XGB: {xgb_acc:.4f} (baseline: {baseline_xgb:.4f})")
-        print("   Consider reverting config.py parameter changes for better results")
+    if max_auc > 0.85:
+        print("\n⚠️  WARNING: ROC-AUC > 0.85 on test set — review feature_engineering.py for look-ahead bias")
+        print(f"   Max ROC-AUC: {max_auc:.4f}")
 
     return {
         'rf_model': rf_model,

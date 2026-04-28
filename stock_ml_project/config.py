@@ -98,7 +98,7 @@ SVM_PARAMS = {
 
 # BACKTESTING SETTINGS
 # Number of splits for walk-forward validation
-N_SPLITS = 10  # 5-fold time series cross-validation
+N_SPLITS = 10  # 10-fold time series cross-validation
 
 # SENTIMENT ANALYSIS SETTINGS (Optional - for future use)
 # News API settings (you'll need to sign up for API key)

@@ -1,28 +1,28 @@
-#data handling
+# Data handling
 pandas
 numpy
 
-#data collection
+# Data collection
 yfinance
 requests
 
-#machine learning
+# Machine learning
 scikit-learn
+xgboost
 
-#visualization
+# Visualization
 matplotlib
 seaborn
 
-#Sentiment Analysis (for later)
-vaderSentiment
-transformers
-torch
-
-
-#Jupyter for notebooks
+# Jupyter for notebooks
 jupyter
 ipython
 
 # Utilities
 python-dotenv
 tqdm
+
+# Sentiment Analysis (future NLP integration)
+vaderSentiment
+# transformers  # Uncomment when adding BERT-based sentiment
+# torch         # Uncomment when adding BERT-based sentiment

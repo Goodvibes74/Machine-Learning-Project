@@ -318,21 +318,27 @@ def run_example():
     print(f"\nData shape: X={X.shape}, y={y.shape}")
     print(f"Number of features: {len(features)}")
 
+    # Chronological 80/20 train/test split (no random shuffling for time series)
+    split_idx = int(len(X) * 0.8)
+    X_train, X_test = X.iloc[:split_idx], X.iloc[split_idx:]
+    y_train, y_test = y.iloc[:split_idx], y.iloc[split_idx:]
+    print(f"\nTrain samples: {len(X_train)}, Test samples: {len(X_test)}")
+
     # Train XGBoost model
     print("\n" + "=" * 60)
     print("TRAINING XGBOOST MODEL")
     print("=" * 60)
-    model = train_xgboost(X, y)
+    model = train_xgboost(X_train, y_train)
 
-    # Evaluate model
+    # Evaluate model on held-out test set
     print("\n" + "=" * 60)
     print("EVALUATING MODEL")
     print("=" * 60)
-    results, y_pred = evaluate_xgboost_model(model, X, y, X, y)
+    results, y_pred = evaluate_xgboost_model(model, X_train, y_train, X_test, y_test)
 
     # Plot confusion matrix
     print("\nGenerating confusion matrix...")
-    plot_xgb_confusion_matrix(y, y_pred, title='XGBoost Confusion Matrix (Full Data)')
+    plot_xgb_confusion_matrix(y_test, y_pred, title='XGBoost Confusion Matrix (Test Set)')
 
     # Plot feature importance
     print("\nGenerating feature importance plot...")
@@ -340,7 +346,7 @@ def run_example():
 
     # Print final summary
     print("\n" + "=" * 60)
-    print("FINAL RESULTS SUMMARY")
+    print("FINAL RESULTS SUMMARY (Test Set)")
     print("=" * 60)
     print(f"Accuracy:  {results['accuracy']:.4f}")
     print(f"Precision: {results['precision']:.4f}")

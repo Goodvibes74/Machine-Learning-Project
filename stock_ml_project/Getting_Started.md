@@ -1,58 +1,52 @@
-# 🚀 Getting Started Guide
+# Getting Started Guide
 
 ## Step-by-Step Instructions for Running Your Project
 
-### Prerequisites Checklist
+### Prerequisites
 - [ ] Python 3.8+ installed
 - [ ] Internet connection (to download stock data)
-- [ ] Text editor or IDE (VS Code, PyCharm, or even Notepad)
-- [ ] Terminal/Command Prompt access
+- [ ] Text editor or IDE (VS Code, PyCharm, etc.)
+- [ ] Terminal / Command Prompt access
 
 ---
 
-## 📦 Part 1: Initial Setup (One-Time)
+## Part 1: Initial Setup (One-Time)
 
 ### Step 1: Navigate to Project Directory
+
 ```bash
-# Open terminal/command prompt
-# Navigate to where you want to create the project
-cd Desktop
-# Or wherever you want the project folder
-
-# Create and enter the project directory
-mkdir stock-prediction
-cd stock-prediction
+cd "path/to/stock_ml_project"
 ```
 
-### Step 2: Copy All Project Files
-Copy all the files from the guides into your `stock-prediction` folder:
-- `requirements.txt`
-- `config.py`
-- `main.py`
-- `README.md`
-- All files in `src/` folder
+Your project folder should look like this:
 
-Your folder should look like this:
 ```
-stock-prediction/
+stock_ml_project/
 ├── src/
 │   ├── data_collection.py
 │   ├── preprocessing.py
 │   ├── feature_engineering.py
 │   ├── models.py
+│   ├── xgboost_model.py
 │   └── backtesting.py
+├── comparison/
+│   └── compare_models.py
+├── data/
+│   ├── raw/
+│   ├── processed/
+│   └── features/
+├── outputs/
 ├── config.py
 ├── main.py
 ├── requirements.txt
+├── Getting_Started.md
 └── README.md
 ```
 
-### Step 3: Create Virtual Environment
-```bash
-# Create virtual environment named 'venv'
-python -m venv venv
+### Step 2: Create Virtual Environment
 
-# Activate it (choose based on your OS):
+```bash
+python -m venv venv
 
 # Windows:
 venv\Scripts\activate
@@ -60,444 +54,332 @@ venv\Scripts\activate
 # Mac/Linux:
 source venv/bin/activate
 
-# You should see (venv) at start of command line
+# You should see (venv) at the start of the command line
 ```
 
-### Step 4: Install Packages
+### Step 3: Install Packages
+
 ```bash
-# First, upgrade pip
 python -m pip install --upgrade pip
-
-# Install setuptools (if you had the error before)
-pip install setuptools wheel
-
-# Install all project dependencies
 pip install -r requirements.txt
-
-# This will take a few minutes - be patient!
 ```
 
-### Step 5: Verify Installation
-Create a file called `test_install.py`:
+This installs: `pandas`, `numpy`, `scikit-learn`, `xgboost`, `yfinance`, `matplotlib`, `seaborn`, `tqdm`, and more.
+
+### Step 4: Verify Installation
+
+Create `test_setup.py` (already in the project root):
 
 ```python
-# test_install.py
 import pandas as pd
 import numpy as np
 import yfinance as yf
 from sklearn.ensemble import RandomForestClassifier
+from xgboost import XGBClassifier
 import matplotlib.pyplot as plt
 
 print("✅ All packages imported successfully!")
 
-# Test downloading data
-print("\nTesting data download...")
 data = yf.download("AAPL", period="5d", progress=False)
 print(f"✅ Downloaded {len(data)} days of AAPL data")
-
-print("\n🎉 Setup complete! You're ready to start!")
+print("\n🎉 Setup complete!")
 ```
 
-Run it:
 ```bash
-python test_install.py
+python test_setup.py
 ```
-
-If you see "✅ Setup complete!", you're good to go!
 
 ---
 
-## 🎮 Part 2: Running the Project
+## Part 2: Running the Project
 
-### Option A: Interactive Mode (Recommended for Beginners)
+### Option A: Interactive Menu (Recommended)
 
 ```bash
 python main.py
 ```
 
-You'll see a menu:
+Menu options:
 ```
-What would you like to do?
 1. Run pipeline for a single stock
 2. Run pipeline for all configured stocks
 3. Download data for all stocks (preparation)
 4. Exit
-
-Enter your choice (1-4):
 ```
 
-**First time? Choose option 1:**
-- Enter `1`
-- When asked for ticker, type: `AAPL`
-- Press Enter and watch it run!
+**First time? Choose option 1, then enter `AAPL`.**
 
-**What will happen**:
-1. Downloads AAPL data from 2021-2024
-2. Cleans the data
-3. Creates features
-4. Trains model
-5. Shows accuracy
-6. Generates plots (close them to continue)
+What happens:
+1. Downloads AAPL data (3 years from Yahoo Finance)
+2. Cleans and validates the data
+3. Engineers 25+ technical indicators
+4. Trains a Random Forest model (with threshold calibration)
+5. Evaluates accuracy, precision, recall, F1
+6. Runs 10-fold walk-forward backtesting
 
-**Expected runtime**: 2-3 minutes
+**Expected runtime**: 3–5 minutes for one stock.
 
-### Option B: Run Specific Steps Only
+### Option B: Full Model Comparison (RF vs XGBoost vs SVM)
 
-#### Just Download Data
 ```bash
-python src/data_collection.py
+python comparison/compare_models.py
 ```
 
-#### Just Test Feature Engineering
+This trains all three models on the same data, generates ROC curve and metrics comparison plots, and saves results to `outputs/comparison_results.csv`.
+
+### Option C: Test Individual Modules
+
 ```bash
-python src/feature_engineering.py
+python src/data_collection.py      # Download & load data
+python src/preprocessing.py        # Clean data
+python src/feature_engineering.py  # Engineer features
+python src/models.py               # Train Random Forest + SVM
+python src/xgboost_model.py        # Train XGBoost
+python src/backtesting.py          # Walk-forward validation
 ```
 
-#### Just Train a Model
-```bash
-python src/models.py
-```
+Each module has a built-in `run_example()` function.
 
-Each module has examples built in!
+### Option D: Python Script
 
-### Option C: Python Script
-
-Create `my_analysis.py`:
 ```python
 from main import run_complete_pipeline
 
-# Run pipeline for Apple stock
 results = run_complete_pipeline('AAPL')
 
-# Check accuracy
 if results:
     accuracy = results['model_results']['metrics']['test_accuracy']
-    print(f"\nFinal Accuracy: {accuracy:.2%}")
-```
-
-Run it:
-```bash
-python my_analysis.py
+    print(f"Test Accuracy: {accuracy:.2%}")
 ```
 
 ---
 
-## 📊 Part 3: Understanding the Output
+## Part 3: Understanding the Output
 
-### What You'll See
+### Sample Output
 
-1. **Data Collection Output**:
 ```
-Downloading AAPL data from 2021-01-01 to 2024-01-01...
+STEP 1: DATA COLLECTION
 ✅ Downloaded 756 days of data for AAPL
-✅ Saved 756 rows to data/raw/AAPL_raw.csv
-```
 
-2. **Feature Engineering Output**:
-```
-✅ Added 'Returns' feature
-✅ Added 'SMA_5' feature
-✅ Added 'SMA_10' feature
-...
-Feature engineering complete!
-Total columns: 18
-```
+STEP 3: FEATURE ENGINEERING
+✅ Added 'RSI_14' feature
+✅ Added 'MACD', 'MACD_signal', 'MACD_histogram' features
+✅ Added Bollinger Bands features
+Feature engineering complete! Total columns: 33
 
-3. **Model Training Output**:
-```
-Training model...
+STEP 4: MODEL TRAINING
+✅ Calibrated threshold: 0.43 (val acc=0.5821)
 ✅ Model training complete!
 
 TEST SET PERFORMANCE:
-  Accuracy:  0.6622
-  Precision: 0.6891
-  Recall:    0.7234
-  F1 Score:  0.7058
+  Accuracy:  0.6021
+  Precision: 0.6134
+  Recall:    0.6812
+  F1 Score:  0.6456
 ```
 
-4. **What the Metrics Mean**:
-- **Accuracy 66%**: Correct predictions 66% of the time
-- **Precision 69%**: When we predict "up", we're right 69% of the time
-- **Recall 72%**: We catch 72% of actual "up" days
-- **This is GOOD for stock prediction!** (>50% is profitable)
+### Metrics Explained
+| Metric | Meaning |
+|---|---|
+| Accuracy 60% | Correct predictions 60% of the time |
+| Precision 61% | When we predict "up", we're right 61% of the time |
+| Recall 68% | We catch 68% of actual "up" days |
+| >50% accuracy | Theoretically profitable — this is the target |
 
 ### Generated Files
 
-After running, you'll have:
 ```
-data/
-├── raw/
-│   └── AAPL_raw.csv          # Downloaded data
-├── processed/
-│   └── AAPL_processed.csv    # Cleaned data
-└── features/
-    └── AAPL_features.csv     # Data with all features
-```
+data/raw/AAPL_raw.csv          ← Raw downloaded data
+data/processed/AAPL_processed.csv  ← After cleaning
+data/features/AAPL_features.csv    ← After feature engineering
 
-You can open these CSV files in Excel to see the data!
+outputs/
+├── roc_comparison.png              ← ROC curves (all models)
+├── metrics_comparison.png          ← Bar chart comparison
+├── feature_importance_comparison.png
+└── comparison_results.csv         ← Metrics table
+```
 
 ---
 
-## 🔧 Part 4: Customization
+## Part 4: Customization
 
-### Change Which Stock to Analyze
+### Change Which Stocks to Analyze
 
-Edit `config.py`, find this line:
 ```python
-TICKERS = ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'TSLA']
-```
-
-Change to your preferred stocks:
-```python
-TICKERS = ['NVDA', 'AMD', 'INTC']  # Semiconductor stocks
+# config.py
+TICKERS = ['NVDA', 'AMD', 'INTC']
 ```
 
 ### Change Date Range
 
-Edit `config.py`:
 ```python
-START_DATE = '2022-01-01'  # Start from 2022
-END_DATE = '2024-12-31'    # Up to end of 2024
+# config.py
+START_DATE = '2022-01-01'
 ```
 
-### Change Model Parameters
+### Tune Model Parameters
 
-Edit `config.py`, find `RF_PARAMS`:
 ```python
+# config.py — Random Forest (more conservative → less overfitting)
 RF_PARAMS = {
-    'n_estimators': 200,    # Try more trees (slower but potentially better)
-    'max_depth': 15,        # Allow deeper trees
-    'min_samples_split': 10 # More conservative
+    'n_estimators': 300,
+    'max_depth': 4,
+    'min_samples_split': 30,
+    'min_samples_leaf': 15,
 }
-```
 
-**After any config change**:
-```bash
-# Re-run the pipeline
-python main.py
+# XGBoost
+XGB_PARAMS = {
+    'n_estimators': 150,
+    'max_depth': 5,
+    'learning_rate': 0.08,
+}
+
+# SVM
+SVM_PARAMS = {
+    'C': 5.0,
+    'kernel': 'rbf',
+    'gamma': 'auto',
+}
 ```
 
 ---
 
-## 🐛 Part 5: Troubleshooting
+## Part 5: Troubleshooting
 
-### Problem: "pip: command not found"
-**Solution**: Use `python -m pip` instead:
+### "pip: command not found"
 ```bash
 python -m pip install -r requirements.txt
 ```
 
-### Problem: "python: command not found"
-**Solution**: Try `python3` instead:
+### "python: command not found"
 ```bash
-python3 -m venv venv
 python3 main.py
 ```
 
-### Problem: Virtual environment won't activate
-**Windows PowerShell**:
+### PowerShell won't activate venv
 ```powershell
-# Enable script execution first
 Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
-# Then activate
 venv\Scripts\Activate.ps1
 ```
 
-### Problem: "No data found for ticker"
-**Possible causes**:
-1. Typo in ticker symbol (use uppercase: AAPL not aapl)
-2. No internet connection
-3. Yahoo Finance is down (try again later)
+### "No data found for ticker"
+- Use uppercase ticker symbols: `AAPL` not `aapl`
+- Check internet connection
+- Try a well-known ticker first
 
-**Solution**: Start with well-known tickers:
-```python
-# These always work:
-'AAPL'  # Apple
-'MSFT'  # Microsoft
-'GOOGL' # Google
-```
+### "ValueError: Input contains NaN"
+Expected from rolling windows — `prepare_ml_data()` handles this automatically via `dropna()`.
 
-### Problem: Plots not showing
-**Solution**: 
+### Low accuracy (~50%)
+Normal for financial data. Try a longer date range or more features.
+
+### Plots not showing
 ```python
-# Add this at top of any file using plots
 import matplotlib
-matplotlib.use('TkAgg')  # Or 'Qt5Agg'
+matplotlib.use('TkAgg')  # or 'Qt5Agg'
 import matplotlib.pyplot as plt
 ```
 
-### Problem: Out of memory
-**Solution**: Use less data:
+### Out of memory
 ```python
-# In config.py
-START_DATE = '2023-01-01'  # Just 1 year instead of 3
+# config.py — use less data
+START_DATE = '2023-01-01'
+TICKERS = ['AAPL']  # start with one stock
 ```
 
 ---
 
-## 📝 Part 6: Daily Workflow
+## Part 6: Daily Workflow
 
-### First Time Setup (Already done above)
-1. Install Python
-2. Create virtual environment
-3. Install packages
-4. Verify installation
-
-### Every Time You Work on Project
 ```bash
-# 1. Navigate to project folder
-cd path/to/stock-prediction
+# Every session:
+venv\Scripts\activate        # Windows
+# source venv/bin/activate  # Mac/Linux
 
-# 2. Activate virtual environment
-# Windows:
-venv\Scripts\activate
-# Mac/Linux:
-source venv/bin/activate
+python main.py               # Run the pipeline
 
-# 3. Run your code
-python main.py
-
-# 4. When done, deactivate
-deactivate
-```
-
-### Typical Development Session
-```bash
-# Activate environment
-source venv/bin/activate  # or venv\Scripts\activate on Windows
-
-# Make changes to code in your editor
-# ... edit config.py, modify features, etc ...
-
-# Test your changes
-python main.py
-
-# Look at results
-# Open generated CSV files in Excel
-# Review plots
-
-# Deactivate when done
-deactivate
+deactivate                   # When done
 ```
 
 ---
 
-## 🎯 Part 7: Learning Path
+## Part 7: Learning Path
 
 ### Week 1: Get it Running
-- [ ] Complete setup
-- [ ] Run pipeline for AAPL
-- [ ] Understand what each file does
-- [ ] Read all the comments in the code
+- [ ] Complete setup and verify installation
+- [ ] Run pipeline for AAPL (`python main.py` → option 1)
+- [ ] Read `config.py` and understand the settings
+- [ ] Open the generated CSV files in Excel
 
-### Week 2: Experiment
-- [ ] Try different stocks
-- [ ] Change date ranges
-- [ ] Modify model parameters
-- [ ] Compare results
+### Week 2: Explore Models
+- [ ] Run `python comparison/compare_models.py`
+- [ ] Compare RF vs XGBoost vs SVM performance
+- [ ] Look at feature importance plots
+- [ ] Try different tickers (MSFT, TSLA, NVDA)
 
 ### Week 3: Customize
-- [ ] Add a new feature
-- [ ] Try different window sizes
-- [ ] Experiment with hyperparameters
-- [ ] Document what works better
+- [ ] Add a new technical indicator in `feature_engineering.py`
+- [ ] Tune hyperparameters in `config.py`
+- [ ] Extend `MOMENTUM_WINDOWS` or `ROLLING_WINDOWS`
+- [ ] Experiment with `N_SPLITS` for backtesting
 
-### Week 4: Understand Deeply
-- [ ] Read about Random Forests
-- [ ] Understand each evaluation metric
-- [ ] Learn about overfitting
-- [ ] Explore backtesting results
+### Week 4: Go Deeper
+- [ ] Read about each indicator (RSI, MACD, Bollinger Bands)
+- [ ] Understand walk-forward vs random CV
+- [ ] Learn why `class_weight='balanced'` needs threshold calibration
+- [ ] Explore overfitting signals (train vs test accuracy gap)
 
 ---
 
-## 💡 Quick Commands Reference
+## Quick Reference
 
 ```bash
 # Setup (one time)
 python -m venv venv
-venv\Scripts\activate  # Windows
+venv\Scripts\activate
 pip install -r requirements.txt
+python test_setup.py
 
 # Daily use
-venv\Scripts\activate  # Start
-python main.py         # Run
-deactivate            # Stop
+venv\Scripts\activate
+python main.py                        # Full pipeline (menu)
+python comparison/compare_models.py   # Compare all three models
+deactivate
 
-# Testing individual parts
+# Individual modules
 python src/data_collection.py
+python src/feature_engineering.py
 python src/models.py
+python src/xgboost_model.py
 python src/backtesting.py
 
-# Check what's installed
-pip list
-
-# Update a package
-pip install --upgrade pandas
+# Useful checks
+pip list                   # See installed packages
+pip install --upgrade pandas  # Update a package
 ```
 
 ---
 
-## 📞 Getting Help
+## Common Questions
 
-### If Something Doesn't Work
-
-1. **Read the error message carefully**
-   - It usually tells you what's wrong
-   - Google the exact error message
-
-2. **Check the code comments**
-   - Every function has documentation
-   - Examples show how to use it
-
-3. **Try the examples**
-   - Each module has a `run_example()` function
-   - These are guaranteed to work
-
-4. **Start simple**
-   - Use one stock, short date range
-   - Get that working first
-   - Then expand
-
-### Common Questions
-
-**Q: How long should it take to run?**
-A: 2-5 minutes for one stock, 10-20 for five stocks
+**Q: How long does it take to run?**
+A: 3–5 minutes for one stock; 15–25 minutes for five stocks.
 
 **Q: What's good accuracy?**
-A: 60-70% is excellent for stock prediction
+A: 55–65% is realistic. >60% is strong for daily stock direction prediction.
+
+**Q: Why does Random Forest use a calibrated threshold?**
+A: `class_weight='balanced'` compresses predicted probabilities, making the raw 0.5 cut-off too conservative. The last 20% of training data is used to find a better threshold — no test data is touched.
 
 **Q: Can I use this for real trading?**
-A: NO! This is for learning only
+A: No. This is for learning only. Real trading needs risk management, transaction costs, slippage, and much more extensive testing.
 
-**Q: Why do I need virtual environment?**
-A: Keeps project dependencies isolated from other Python projects
-
----
-
-## ✅ Checklist for Success
-
-Before you start:
-- [ ] Python installed and working
-- [ ] Virtual environment activated
-- [ ] All packages installed
-- [ ] Test script runs successfully
-
-When running pipeline:
-- [ ] Internet connection active
-- [ ] Sufficient disk space (~100MB)
-- [ ] Config.py settings reviewed
-- [ ] Terminal window large enough to see output
-
-After completion:
-- [ ] Check data/ folder for CSV files
-- [ ] Review accuracy metrics
-- [ ] Examine feature importance plot
-- [ ] Check confusion matrix
+**Q: Why no `shuffle=True` in the train/test split?**
+A: Stock prices are time-ordered. Shuffling would let the model "see the future" during training, inflating accuracy (data leakage).
 
 ---
 
-**You're now ready to start your ML journey! 🚀**
-
-**Remember**: Every expert was once a beginner. Take it step by step, read the code, and don't hesitate to experiment!
-
-Good luck! 🍀
+**You're ready to start! Take it step by step, read the code comments, and experiment freely.**

@@ -508,7 +508,7 @@ def create_target_variable(df, horizon=None): # responsible for creating the tar
         horizon = config.PREDICTION_HORIZON 
 
     # Get future close price
-    # shift(-1) means "get yesterdays's value"
+    # shift(-horizon) shifts the Close column backward so row[t] holds Close[t+horizon]
     df['Future_Close'] = df['Close'].shift(-horizon)
 
     # Create binary target: 1 if price goes up, 0 otherwise
