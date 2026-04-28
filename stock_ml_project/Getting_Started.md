@@ -173,19 +173,20 @@ STEP 4: MODEL TRAINING
 ✅ Model training complete!
 
 TEST SET PERFORMANCE:
-  Accuracy:  0.6021
-  Precision: 0.6134
-  Recall:    0.6812
-  F1 Score:  0.6456
+  Accuracy:  0.5669
+  Precision: 0.5600
+  Recall:    0.8121
+  F1 Score:  0.6617
+  ROC-AUC:   0.5707
 ```
 
 ### Metrics Explained
 | Metric | Meaning |
 |---|---|
-| Accuracy 60% | Correct predictions 60% of the time |
-| Precision 61% | When we predict "up", we're right 61% of the time |
-| Recall 68% | We catch 68% of actual "up" days |
-| >50% accuracy | Theoretically profitable — this is the target |
+| Accuracy 57% | Correct direction predictions 57% of the time |
+| Precision 56% | When we predict "up", we're right 56% of the time |
+| Recall 81% | We catch 81% of actual "up" days |
+| ROC-AUC 0.57 | Genuine predictive signal above the 0.50 random baseline |
 
 ### Generated Files
 

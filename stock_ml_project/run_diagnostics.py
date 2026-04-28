@@ -46,7 +46,7 @@ print("-" * 60)
 for rank, (feat, score) in enumerate(combined.items(), 1):
     print(f"  {rank:2d}  {feat:<26} {rf_imp[feat]:.4f}   {xgb_imp[feat]:.4f}   {score:.4f}")
 
-# Features with combined importance < 0.5% → likely noise
+# Features with combined importance < 0.5% -> likely noise
 weak = combined[combined < 0.005].index.tolist()
 print(f"\nWeak features (combined < 0.5%): {weak}")
 
@@ -87,22 +87,33 @@ for fold, (tr_idx, te_idx) in enumerate(tscv.split(X), 1):
 print(f"\n{'':8} RF  mean acc={np.mean(rf_accs):.4f}  mean AUC={np.mean(rf_aucs):.4f}")
 print(f"{'':8} XGB mean acc={np.mean(xgb_accs):.4f}  mean AUC={np.mean(xgb_aucs):.4f}")
 
-# ─── 3. Ensemble test (RF + XGBoost majority probability) ─────────────────────
+# ─── 3. Walk-forward recent folds summary ─────────────────────────────────────
 print("\n" + "=" * 60)
-print("ENSEMBLE TEST (RF + XGBoost averaged probability)")
+print("WALK-FORWARD SUMMARY (all folds vs last 5 folds)")
+print("=" * 60)
+n = len(rf_accs)
+last = max(1, n - 5)  # last 5 folds represent recent market regime
+print(f"All {n} folds  -> RF AUC={np.mean(rf_aucs):.4f}  XGB AUC={np.mean(xgb_aucs):.4f}")
+print(f"Last {n-last} folds -> RF AUC={np.mean(rf_aucs[last:]):.4f}  XGB AUC={np.mean(xgb_aucs[last:]):.4f}")
+
+# ─── 4. Ensemble tests ────────────────────────────────────────────────────────
+print("\n" + "=" * 60)
+print("ENSEMBLE TEST (held-out last 20%)")
 print("=" * 60)
 
 rf_proba  = rf.predict_proba(X_test)[:, 1]
 xgb_proba = xgb.predict_proba(X_test)[:, 1]
-ens_proba = (rf_proba + xgb_proba) / 2
-ens_pred  = (ens_proba >= 0.5).astype(int)
-
-ens_acc = accuracy_score(y_test, ens_pred)
-ens_f1  = f1_score(y_test, ens_pred)
-ens_auc = roc_auc_score(y_test, ens_proba)
-print(f"Ensemble  Test acc={ens_acc:.4f}  F1={ens_f1:.4f}  AUC={ens_auc:.4f}")
 
 rf_auc_val  = roc_auc_score(y_test, rf_proba)
 xgb_auc_val = roc_auc_score(y_test, xgb_proba)
-print(f"RF alone  Test acc={accuracy_score(y_test, rf.predict(X_test)):.4f}  AUC={rf_auc_val:.4f}")
-print(f"XGB alone Test acc={accuracy_score(y_test, xgb.predict(X_test)):.4f}  AUC={xgb_auc_val:.4f}")
+print(f"RF alone   acc={accuracy_score(y_test, rf.predict(X_test)):.4f}  AUC={rf_auc_val:.4f}")
+print(f"XGB alone  acc={accuracy_score(y_test, xgb.predict(X_test)):.4f}  AUC={xgb_auc_val:.4f}")
+
+for w_rf in [0.3, 0.4, 0.5]:
+    w_xgb = 1.0 - w_rf
+    ens = w_rf * rf_proba + w_xgb * xgb_proba
+    ens_pred = (ens >= 0.5).astype(int)
+    print(f"Ensemble ({w_rf:.0%} RF + {w_xgb:.0%} XGB)  "
+          f"acc={accuracy_score(y_test, ens_pred):.4f}  "
+          f"F1={f1_score(y_test, ens_pred):.4f}  "
+          f"AUC={roc_auc_score(y_test, ens):.4f}")

@@ -223,14 +223,17 @@ Results & Insights (outputs/ folder)
 - **F1**: Harmonic mean of precision and recall
 - **ROC-AUC**: Area under the ROC curve (threshold-independent)
 
-## Expected Results
+## Verified Results (AAPL, 5-year dataset, 80/20 chronological split)
 
-| Metric | Target Range |
-|---|---|
-| Test Accuracy | 55–65% |
-| ROC-AUC | 0.52–0.62 |
+| Model | Test Accuracy | ROC-AUC | F1 |
+|---|---|---|---|
+| Random Forest | 53.8% | 0.538 | 0.660 |
+| XGBoost | 56.7% | 0.571 | 0.662 |
+| SVM | 49.7% | 0.512 | 0.575 |
 
-> Stock markets are noisy. 60% accuracy is competitive with professional quant strategies. >50% is theoretically profitable.
+**Walk-forward (10-fold, most recent 5 folds):** XGB mean AUC = 0.518; RF mean AUC = 0.496
+
+> Stock markets are noisy. 55–57% accuracy and AUC 0.54–0.57 are competitive with professional quant strategies. >50% AUC signals genuine predictive information.
 
 ## Customization
 

@@ -16,7 +16,6 @@ import numpy as np
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.svm import SVC
 from sklearn.preprocessing import StandardScaler
-from sklearn.calibration import CalibratedClassifierCV
 from sklearn.metrics import (
     accuracy_score,
     classification_report,
@@ -74,41 +73,15 @@ def split_train_test(X, y, test_size=None):
     return X_train, X_test, y_train, y_test
 
 
-class _CalibratedRF:
-    """
-    RandomForest wrapped with isotonic probability calibration.
-
-    class_weight='balanced' compresses RF probabilities toward 0.5, so the
-    raw 0.5 decision boundary carries less information than it should.
-    CalibratedClassifierCV (isotonic) corrects this by learning a monotone
-    mapping from raw scores to proper probabilities using 5-fold CV on the
-    training data.  No separate hold-out window is needed, so the full
-    training set is used for both fitting and calibration.
-
-    Exposes the same interface as a fitted sklearn classifier
-    (predict, predict_proba, feature_importances_).
-    """
-    def __init__(self, base_model, calibrated_model):
-        self._base = base_model
-        self._cal = calibrated_model
-        self.feature_importances_ = base_model.feature_importances_
-        self.classes_ = base_model.classes_
-
-    def predict(self, X):
-        return self._cal.predict(X)
-
-    def predict_proba(self, X):
-        return self._cal.predict_proba(X)
-
-
 def train_random_forest(X_train, y_train, params=None):
     """
-    Train a Random Forest classifier with isotonic probability calibration.
+    Train a Random Forest classifier.
 
-    Uses CalibratedClassifierCV (method='isotonic', cv=5) on the full
-    training set to produce well-calibrated probabilities.  This replaces
-    the previous ad-hoc threshold search, which was non-stationary across
-    walk-forward folds and caused accuracy to drop below 50% in some periods.
+    No class_weight or probability calibration wrapper — the class imbalance
+    in daily stock returns (~53/47) is mild enough that balanced weighting
+    only compresses probabilities and hurts threshold reliability.  The
+    plain RF gives better-calibrated probabilities and more stable walk-
+    forward performance than the previous threshold-search wrapper.
 
     Args:
         X_train (pd.DataFrame): Training features
@@ -116,7 +89,7 @@ def train_random_forest(X_train, y_train, params=None):
         params (dict): Model hyperparameters (default from config)
 
     Returns:
-        _CalibratedRF: Trained and calibrated model
+        RandomForestClassifier: Trained model
     """
     if params is None:
         params = config.RF_PARAMS
@@ -127,20 +100,13 @@ def train_random_forest(X_train, y_train, params=None):
         print("=" * 60)
         print(f"Parameters: {params}")
 
-    base_model = RandomForestClassifier(**params)
-
-    # Use 5-fold CV calibration when we have enough data; prefit otherwise
-    n_splits = 5 if len(X_train) >= 150 else 3
-    calibrated = CalibratedClassifierCV(base_model, method='isotonic', cv=n_splits)
-    calibrated.fit(X_train, y_train)
-
-    # Also fit base model so we can expose feature_importances_
-    base_model.fit(X_train, y_train)
+    model = RandomForestClassifier(**params)
+    model.fit(X_train, y_train)
 
     if config.VERBOSE:
-        print("✅ Model training and probability calibration complete!")
+        print("✅ Model training complete!")
 
-    return _CalibratedRF(base_model, calibrated)
+    return model
 
 
 def train_svm(X_train, y_train, params=None):

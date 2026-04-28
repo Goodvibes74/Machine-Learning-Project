@@ -64,14 +64,15 @@ TEST_SIZE = 0.2  # 20% of data for testing
 
 # Random Forest hyperparameters
 RF_PARAMS = {
-    'n_estimators': 300,       # More trees → lower variance
-    'max_depth': 4,            # Shallow trees are key for noisy financial data (was 8)
-    'min_samples_split': 30,   # Hard split threshold → forces generalization (was 10)
-    'min_samples_leaf': 15,    # Larger leaves → smoother decision boundaries (was 5)
+    'n_estimators': 300,       # More trees -> lower variance
+    'max_depth': 4,            # Shallow trees for noisy financial data
+    'min_samples_split': 30,   # Forces generalisation — prevents tiny splits
+    'min_samples_leaf': 15,    # Large leaves -> smoother decision boundaries
     'max_features': 'sqrt',    # Classic RF: sqrt(n_features) per split
-    'class_weight': 'balanced',
+    # class_weight omitted: 53/47 imbalance is mild; balanced weighting
+    # compresses probabilities and hurts threshold reliability.
     'random_state': 42,
-    'n_jobs': -1,
+    'n_jobs': 1,
 }
 
 # XGBoost hyperparameters
